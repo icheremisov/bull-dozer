@@ -1,0 +1,45 @@
+{
+  "name": "dozer-example",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "lint": "eslint \"{src,test}/**/*.ts\" --fix",
+    "redis:flush": "node ./scripts/flush-redis.js",
+    "test": "npm run redis:flush && npm run test:integration && npm run test:e2e",
+    "redis:up": "docker compose up -d redis",
+    "redis:down": "docker compose down",
+    "redis:logs": "docker compose logs -f redis",
+    "test:integration": "jest --config ./test/jest.integration.json --runInBand",
+    "test:e2e": "jest --config ./test/jest.e2e.json --runInBand",
+    "perf": "npm run redis:flush && ts-node --transpile-only ./scripts/perf-runner.ts",
+    "perf:quick": "npm run redis:flush && ts-node --transpile-only ./scripts/perf-runner.ts --baseline-steps=3 --baseline-payload-kb=2 --baseline-jobs=20 --steps=3,6 --payload-kb=2,8 --jobs=20,50 --failure-rate=0,0.2 --nested-children=0,2 --timer-ms=0,5"
+  },
+  "dependencies": {
+    "@bull-board/api": "^6.7.10",
+    "@bull-board/express": "^6.7.10",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "bullmq": "^5.34.5",
+    "dozer": "file:..",
+    "ioredis": "^5.4.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.10.7",
+    "@types/supertest": "^6.0.2",
+    "jest": "^30.0.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,9 @@
+export class DozerError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = new.target.name;
+  }
+}

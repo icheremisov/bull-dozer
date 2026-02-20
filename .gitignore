@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+example/node_modules/
+.npm/
+.npm-cache/
+
+# Build output
+dist/
+build/
+coverage/
+example/dist/
+example/coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+example/.env
+example/.env.*
+!example/.env.example
+
+# Runtime and temporary files
+.tmp/
+.temp/
+tmp/
+temp/
+pids/
+*.pid
+*.pid.lock
+*.seed
+
+# Editors and IDEs
+.idea/
+.project
+.classpath
+.settings/
+.c9/
+*.launch
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# OS files
+.DS_Store
+
+# Node diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

@@ -1,0 +1,50 @@
+import { WORKFLOW_QUEUE_NAME } from '../constants';
+import {
+  WorkflowJob,
+  WorkflowJobData,
+  WorkflowJobOptions,
+  WorkflowQueueDriver,
+} from './workflow-queue';
+
+class InMemoryWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
+  constructor(
+    public readonly id: string,
+    public readonly name: string,
+    public data: WorkflowJobData<TInput>,
+    public readonly options?: WorkflowJobOptions,
+  ) {}
+
+  updateData(data: WorkflowJobData<TInput>): Promise<void> {
+    this.data = data;
+    return Promise.resolve();
+  }
+}
+
+export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
+  private readonly jobs = new Map<string, WorkflowJob<unknown>>();
+  private counter = 0;
+
+  constructor(private readonly queueName = WORKFLOW_QUEUE_NAME) {}
+
+  add<TInput = unknown>(
+    workflowName: string,
+    data: WorkflowJobData<TInput>,
+    options?: WorkflowJobOptions,
+  ): Promise<WorkflowJob<TInput>> {
+    this.counter += 1;
+    const jobId = `${this.queueName}:${this.counter}`;
+    const job = new InMemoryWorkflowJob<TInput>(
+      jobId,
+      workflowName,
+      data,
+      options,
+    );
+    this.jobs.set(jobId, job as WorkflowJob<unknown>);
+    return Promise.resolve(job);
+  }
+
+  get<TInput = unknown>(jobId: string): Promise<WorkflowJob<TInput> | null> {
+    const job = this.jobs.get(jobId);
+    return Promise.resolve((job as WorkflowJob<TInput> | undefined) ?? null);
+  }
+}
