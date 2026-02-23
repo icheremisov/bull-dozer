@@ -36,6 +36,7 @@
   "scripts": {
     "clean": "rm -rf dist coverage",
     "build": "npm run clean && tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
     "format": "prettier --write \"src/**/*.ts\" \"example/src/**/*.ts\" \"example/test/**/*.ts\"",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "lint:all": "npm run lint && npm --prefix example run lint",
