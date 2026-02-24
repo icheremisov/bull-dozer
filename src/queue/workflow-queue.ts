@@ -5,10 +5,12 @@ export const WORKFLOW_STATUS = {
   running: 1,
   failed: 2,
   completed: 3,
+  cancelled: 4,
 } as const;
 
 export type WorkflowStatusCode =
   (typeof WORKFLOW_STATUS)[keyof typeof WORKFLOW_STATUS];
+export type WorkflowStatusName = keyof typeof WORKFLOW_STATUS;
 
 export interface CompactWorkflowState {
   s: WorkflowStatusCode;
@@ -33,6 +35,15 @@ export interface WorkflowJob<TInput = unknown> {
   data: WorkflowJobData<TInput>;
   options?: WorkflowJobOptions;
   updateData(data: WorkflowJobData<TInput>): Promise<void>;
+}
+
+export interface WorkflowJobInfo<TResult = unknown> {
+  id: string;
+  name: string;
+  status: WorkflowStatusCode;
+  statusName: WorkflowStatusName;
+  result?: TResult;
+  error?: string;
 }
 
 export interface WorkflowQueueDriver {

@@ -15,6 +15,7 @@ import {
   TimeoutError,
   WORKFLOW_STATUS,
   Workflow,
+  WorkflowCancelledError,
 } from './index';
 
 const sleep = async (ms: number): Promise<void> => {
@@ -900,6 +901,46 @@ describe('DozerEngine (library unit tests)', () => {
     expect(job?.data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.completed);
   });
 
+  it('returns workflow job info with status and result by jobId', async () => {
+    const jobId = await engine.start('typed-input-workflow', {
+      kind: 'number',
+      value: 42,
+    });
+
+    await expect(engine.getJobInfo(jobId)).resolves.toMatchObject({
+      id: jobId,
+      name: 'typed-input-workflow',
+      status: WORKFLOW_STATUS.pending,
+      statusName: 'pending',
+      result: undefined,
+    });
+
+    await expect(engine.run(jobId)).resolves.toEqual({ normalized: '42' });
+
+    await expect(engine.getJobInfo(jobId)).resolves.toMatchObject({
+      id: jobId,
+      name: 'typed-input-workflow',
+      status: WORKFLOW_STATUS.completed,
+      statusName: 'completed',
+      result: { normalized: '42' },
+    });
+  });
+
+  it('cancels pending workflow job and prevents running it', async () => {
+    const jobId = await engine.start('retry-workflow', { value: 1 });
+
+    await expect(engine.cancel(jobId)).resolves.toBe(true);
+    await expect(engine.cancel(jobId)).resolves.toBe(false);
+    await expect(engine.getJobInfo(jobId)).resolves.toMatchObject({
+      id: jobId,
+      status: WORKFLOW_STATUS.cancelled,
+      statusName: 'cancelled',
+    });
+    await expect(engine.run(jobId)).rejects.toBeInstanceOf(
+      WorkflowCancelledError,
+    );
+  });
+
   it('does not retry step when NonRetryableError is thrown', async () => {
     const failOnce = moduleRef.get(FailOnceService);
     failOnce.reset();
@@ -1599,6 +1640,19 @@ describe('DozerClient module', () => {
       expect(job?.options).toEqual({
         attempts: 3,
         removeOnComplete: true,
+      });
+
+      await expect(client.getJobInfo(jobId)).resolves.toMatchObject({
+        id: jobId,
+        name: 'external-workflow',
+        status: WORKFLOW_STATUS.pending,
+        statusName: 'pending',
+      });
+      await expect(client.cancel(jobId)).resolves.toBe(true);
+      await expect(client.getJobInfo(jobId)).resolves.toMatchObject({
+        id: jobId,
+        status: WORKFLOW_STATUS.cancelled,
+        statusName: 'cancelled',
       });
     } finally {
       await moduleRef.close();

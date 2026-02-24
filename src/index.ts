@@ -29,10 +29,12 @@ export type {
   BullMQQueueLike,
   BullMQJobLike,
   WorkflowStatusCode,
+  WorkflowStatusName,
   WorkflowJobOptions,
   CompactWorkflowState,
   WorkflowJobData,
   WorkflowJob,
+  WorkflowJobInfo,
   WorkflowQueueDriver,
 } from './queue/workflow-queue';
 export { BullMQWorkflowQueue } from './queue/bullmq-workflow-queue';
@@ -45,4 +47,5 @@ export { SerializationError } from './errors/serialization.error';
 export { StepReplayConflictError } from './errors/step-replay-conflict.error';
 export { TimeoutError } from './errors/timeout.error';
 export { WorkflowJobNotFoundError } from './errors/workflow-job-not-found.error';
+export { WorkflowCancelledError } from './errors/workflow-cancelled.error';
 export { WorkflowNotRegisteredError } from './errors/workflow-not-registered.error';

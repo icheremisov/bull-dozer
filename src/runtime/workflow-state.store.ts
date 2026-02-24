@@ -44,7 +44,8 @@ const isWorkflowStatusCode = (
     value === WORKFLOW_STATUS.pending ||
     value === WORKFLOW_STATUS.running ||
     value === WORKFLOW_STATUS.failed ||
-    value === WORKFLOW_STATUS.completed
+    value === WORKFLOW_STATUS.completed ||
+    value === WORKFLOW_STATUS.cancelled
   );
 };
 
@@ -117,7 +118,15 @@ export class WorkflowStateStore<TInput = unknown> {
 
   async markFailed(error: unknown): Promise<void> {
     this.state.s = WORKFLOW_STATUS.failed;
+    this.state.r = undefined;
     this.state.e = asErrorMessage(error);
+    await this.flush();
+  }
+
+  async markCancelled(message = 'Workflow cancelled'): Promise<void> {
+    this.state.s = WORKFLOW_STATUS.cancelled;
+    this.state.r = undefined;
+    this.state.e = message;
     await this.flush();
   }
 

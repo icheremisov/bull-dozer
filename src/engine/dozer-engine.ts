@@ -12,16 +12,19 @@ import { NonDeterminismError } from '../errors/non-determinism.error';
 import { NonRetryableError } from '../errors/non-retryable.error';
 import { WORKFLOW_STATUS } from '../queue/workflow-queue';
 import type {
+  WorkflowJobInfo,
   WorkflowJobData,
   WorkflowJobOptions,
   WorkflowJob,
   WorkflowQueueDriver,
 } from '../queue/workflow-queue';
 import { WorkflowJobNotFoundError } from '../errors/workflow-job-not-found.error';
+import { WorkflowCancelledError } from '../errors/workflow-cancelled.error';
 import {
   WorkflowExecutionContext,
   WorkflowExecutionContextStorage,
 } from '../runtime/workflow-execution-context';
+import { getWorkflowJobInfo } from '../runtime/workflow-job-info';
 import { WorkflowStateStore } from '../runtime/workflow-state.store';
 import {
   deserializeFromStorage,
@@ -145,6 +148,39 @@ export class DozerEngine {
     return job.id;
   }
 
+  async getJobInfo<TResult = unknown>(
+    jobId: string,
+  ): Promise<WorkflowJobInfo<TResult>> {
+    const job = await this.queue.get(jobId);
+    if (!job) {
+      throw new WorkflowJobNotFoundError(jobId);
+    }
+
+    return getWorkflowJobInfo<TResult>(job);
+  }
+
+  async cancel(jobId: string): Promise<boolean> {
+    const job = await this.queue.get(jobId);
+    if (!job) {
+      throw new WorkflowJobNotFoundError(jobId);
+    }
+
+    const jobInfo = getWorkflowJobInfo(job);
+    if (
+      jobInfo.status !== WORKFLOW_STATUS.pending &&
+      jobInfo.status !== WORKFLOW_STATUS.cancelled
+    ) {
+      return false;
+    }
+    if (jobInfo.status === WORKFLOW_STATUS.cancelled) {
+      return false;
+    }
+
+    const stateStore = new WorkflowStateStore(job);
+    await stateStore.markCancelled();
+    return true;
+  }
+
   private async runDeterminismProbe(
     job: WorkflowJob<unknown>,
     definition: RegisteredWorkflow,
@@ -200,6 +236,9 @@ export class DozerEngine {
     const job = await this.queue.get(jobId);
     if (!job) {
       throw new WorkflowJobNotFoundError(jobId);
+    }
+    if (getWorkflowJobInfo(job).status === WORKFLOW_STATUS.cancelled) {
+      throw new WorkflowCancelledError(jobId);
     }
 
     let definition: RegisteredWorkflow | undefined;
