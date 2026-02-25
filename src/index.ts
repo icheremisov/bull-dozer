@@ -7,10 +7,21 @@ export type {
 
 export { DozerEngine } from './engine/dozer-engine';
 export { DozerClient } from './client/dozer-client';
+export {
+  createWorkflowResultWorker,
+  createWorkflowResultProcessor,
+  decodeWorkflowResultJob,
+} from './client/workflow-result-worker';
+export type {
+  CreateWorkflowResultWorkerOptions,
+  WorkflowResultHandler,
+  WorkflowResultMessage,
+} from './client/workflow-result-worker';
 
 export { Workflow } from './decorators/workflow.decorator';
 export type {
   WorkflowExecutionOptions,
+  WorkflowResultQueueOptions,
   WorkflowOptions,
 } from './decorators/workflow.decorator';
 export { Step } from './decorators/step.decorator';
@@ -25,18 +36,27 @@ export {
 } from './constants';
 
 export { WORKFLOW_STATUS } from './queue/workflow-queue';
+export { toWorkflowResultQueueJobId } from './queue/workflow-queue';
 export type {
   BullMQQueueLike,
   BullMQJobLike,
   WorkflowStatusCode,
   WorkflowStatusName,
+  WorkflowKeepJobsOptions,
+  WorkflowJobBackoffOptions,
+  WorkflowJobParentOptions,
+  WorkflowJobDeduplicationOptions,
+  WorkflowJobRepeatOptions,
   WorkflowJobOptions,
   CompactWorkflowState,
   WorkflowJobData,
   WorkflowJob,
   WorkflowJobInfo,
+  WorkflowResultQueueJobData,
+  WorkflowResultQueueJobInfo,
   WorkflowQueueDriver,
 } from './queue/workflow-queue';
+export type { WaitForWorkflowResultOptions } from './client/dozer-client';
 export { BullMQWorkflowQueue } from './queue/bullmq-workflow-queue';
 export { InMemoryWorkflowQueue } from './queue/in-memory-workflow-queue';
 

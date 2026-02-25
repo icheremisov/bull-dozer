@@ -5,5 +5,8 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "moduleNameMapper": {
+    "^dozer$": "<rootDir>/../src/index.ts"
+  },
   "testEnvironment": "node"
 }

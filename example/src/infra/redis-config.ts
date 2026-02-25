@@ -72,6 +72,7 @@ const forceCluster =
 const sharedRedisOptions: RedisOptions = {
   maxRetriesPerRequest: null,
   enableOfflineQueue: false,
+  enableReadyCheck: false,
   ...(redisUsername ? { username: redisUsername } : {}),
   ...(redisPassword ? { password: redisPassword } : {}),
   ...(redisDb !== undefined ? { db: redisDb } : {}),

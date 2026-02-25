@@ -1,8 +1,21 @@
 import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { DozerEngine, DOZER_JOB_STATE_KEY, WorkflowJobData } from 'dozer';
+import {
+  DozerEngine,
+  DOZER_JOB_STATE_KEY,
+  WorkflowJobData,
+  WorkflowResultQueueJobData,
+} from 'dozer';
 import { BranchSelectorService } from './support/branch-selector.service';
-import { EXAMPLE_WORKFLOW_QUEUE } from './infra/tokens';
+import { EXAMPLE_RESULT_QUEUE, EXAMPLE_WORKFLOW_QUEUE } from './infra/tokens';
+
+const toResultQueueJobId = (workflowJobId: string): string => {
+  if (/^\d+$/.test(workflowJobId)) {
+    return `#${workflowJobId}`;
+  }
+
+  return workflowJobId;
+};
 
 @Controller('workflows')
 export class AppController {
@@ -11,6 +24,8 @@ export class AppController {
     private readonly branchSelector: BranchSelectorService,
     @Inject(EXAMPLE_WORKFLOW_QUEUE)
     private readonly queue: Queue<WorkflowJobData<unknown>>,
+    @Inject(EXAMPLE_RESULT_QUEUE)
+    private readonly resultQueue: Queue<WorkflowResultQueueJobData<unknown>>,
   ) {}
 
   @Post(':name/start')
@@ -26,6 +41,29 @@ export class AppController {
   async replay(@Param('jobId') jobId: string): Promise<{ result: unknown }> {
     const result = await this.engine.run(jobId);
     return { result };
+  }
+
+  @Get('results/:jobId')
+  async resultStatus(
+    @Param('jobId') jobId: string,
+  ): Promise<Record<string, unknown>> {
+    const resultJobId = toResultQueueJobId(jobId);
+    const job =
+      (await this.resultQueue.getJob(resultJobId)) ??
+      (resultJobId === jobId ? null : await this.resultQueue.getJob(jobId));
+    if (!job) {
+      return {
+        found: false,
+      };
+    }
+
+    return {
+      found: true,
+      id: String(job.id),
+      name: job.name,
+      state: await job.getState(),
+      data: job.data,
+    };
   }
 
   @Get(':jobId')

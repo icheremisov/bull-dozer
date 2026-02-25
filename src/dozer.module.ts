@@ -18,6 +18,7 @@ import { DozerEngine } from './engine/dozer-engine';
 import { BullMQWorkflowQueue } from './queue/bullmq-workflow-queue';
 import {
   BullMQQueueLike,
+  WorkflowResultQueueJobData,
   WorkflowJobOptions,
   WorkflowQueueDriver,
 } from './queue/workflow-queue';
@@ -35,6 +36,7 @@ export interface DozerDefaultsOptions {
 export interface DozerModuleOptions {
   driver?: WorkflowQueueDriver;
   queue?: BullMQQueueLike<unknown>;
+  resultQueue?: BullMQQueueLike<WorkflowResultQueueJobData<unknown>>;
   defaults?: DozerDefaultsOptions;
 }
 
@@ -103,6 +105,7 @@ const createWorkflowRegistrarProvider = (
       registry.register(options.name, workflowClass, factory, {
         job: options.job,
         execution: options.execution,
+        resultQueue: options.resultQueue,
       });
     }
 

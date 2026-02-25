@@ -1,11 +1,18 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
-import { WORKFLOW_STATUS, WorkflowJobData } from 'dozer';
+import {
+  WORKFLOW_STATUS,
+  WorkflowJobData,
+  WorkflowResultQueueJobData,
+} from 'dozer';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { setupBullBoard } from '../src/infra/bull-board';
-import { EXAMPLE_WORKFLOW_QUEUE } from '../src/infra/tokens';
+import {
+  EXAMPLE_RESULT_QUEUE,
+  EXAMPLE_WORKFLOW_QUEUE,
+} from '../src/infra/tokens';
 import { BranchSelectorService } from '../src/support/branch-selector.service';
 import { FailureMemoryService } from '../src/support/failure-memory.service';
 import { isRedisReachable, redisTestConfig } from './helpers/redis';
@@ -49,6 +56,7 @@ describe('Example workflows e2e (HTTP + Bull Board)', () => {
   let moduleRef: TestingModule;
   let app: INestApplication;
   let queue: Queue<WorkflowJobData<unknown>>;
+  let resultQueue: Queue<WorkflowResultQueueJobData<unknown>>;
   let branchSelector: BranchSelectorService;
   let failureMemory: FailureMemoryService;
   let redisAvailable = false;
@@ -84,7 +92,9 @@ describe('Example workflows e2e (HTTP + Bull Board)', () => {
     app = moduleRef.createNestApplication();
     app.useLogger(false);
     queue = app.get<Queue<WorkflowJobData<unknown>>>(EXAMPLE_WORKFLOW_QUEUE);
-    setupBullBoard(app, queue);
+    resultQueue =
+      app.get<Queue<WorkflowResultQueueJobData<unknown>>>(EXAMPLE_RESULT_QUEUE);
+    setupBullBoard(app, [queue, resultQueue]);
     await app.init();
     branchSelector = app.get(BranchSelectorService);
     failureMemory = app.get(FailureMemoryService);
@@ -106,6 +116,7 @@ describe('Example workflows e2e (HTTP + Bull Board)', () => {
 
     await app.close();
     await queue.close();
+    await resultQueue.close();
   }, 20000);
 
   e2eTest(

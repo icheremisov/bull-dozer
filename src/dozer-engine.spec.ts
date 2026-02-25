@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BullMQQueueLike,
   DOZER_JOB_INPUT_KEY,
   DOZER_JOB_STATE_KEY,
+  createWorkflowResultProcessor,
+  decodeWorkflowResultJob,
   DozerClient,
   DozerEngine,
   DozerModule,
@@ -13,9 +16,12 @@ import {
   Step,
   StepReplayConflictError,
   TimeoutError,
+  toWorkflowResultQueueJobId,
   WORKFLOW_STATUS,
   Workflow,
   WorkflowCancelledError,
+  WorkflowJobOptions,
+  WorkflowResultQueueJobData,
 } from './index';
 
 const sleep = async (ms: number): Promise<void> => {
@@ -83,6 +89,107 @@ class TimeoutCompensationStats {
 class WorkflowAutoResumeStats {
   prepare = 0;
   unstable = 0;
+}
+
+class CapturingResultQueue implements BullMQQueueLike<
+  WorkflowResultQueueJobData<unknown>
+> {
+  readonly added: Array<{
+    name: string;
+    data: WorkflowResultQueueJobData<unknown>;
+    options?: WorkflowJobOptions;
+  }> = [];
+
+  add(
+    name: string,
+    data: WorkflowResultQueueJobData<unknown>,
+    options?: WorkflowJobOptions,
+  ) {
+    this.added.push({ name, data, options });
+    return Promise.resolve({
+      id: this.added.length,
+      name,
+      data,
+      updateData: (
+        nextData: WorkflowResultQueueJobData<unknown>,
+      ): Promise<void> => {
+        const index = this.added.length - 1;
+        this.added[index] = { name, data: nextData, options };
+        return Promise.resolve();
+      },
+    });
+  }
+
+  getJob() {
+    return Promise.resolve(null);
+  }
+}
+
+class FailOnceResultQueue extends CapturingResultQueue {
+  private failed = false;
+
+  override add(
+    name: string,
+    data: WorkflowResultQueueJobData<unknown>,
+    options?: WorkflowJobOptions,
+  ) {
+    if (!this.failed) {
+      this.failed = true;
+      return Promise.reject(new Error('result-queue-temporary-failure'));
+    }
+
+    return super.add(name, data, options);
+  }
+}
+
+class DuplicateJobIdResultQueue extends CapturingResultQueue {
+  private readonly jobsById = new Map<
+    string,
+    WorkflowResultQueueJobData<unknown>
+  >();
+
+  override add(
+    name: string,
+    data: WorkflowResultQueueJobData<unknown>,
+    options?: WorkflowJobOptions,
+  ) {
+    const jobId = options?.jobId;
+    const normalizedJobId =
+      jobId === undefined || jobId === null ? undefined : String(jobId);
+
+    if (normalizedJobId && this.jobsById.has(normalizedJobId)) {
+      return Promise.reject(new Error(`Job ${normalizedJobId} already exists`));
+    }
+
+    if (normalizedJobId) {
+      this.jobsById.set(normalizedJobId, data);
+    }
+
+    return super.add(name, data, options);
+  }
+
+  override getJob(jobId?: string) {
+    if (!jobId) {
+      return Promise.resolve(null);
+    }
+
+    const data = this.jobsById.get(String(jobId));
+    if (!data) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      id: String(jobId),
+      name: 'workflow-result',
+      data,
+      updateData: (
+        nextData: WorkflowResultQueueJobData<unknown>,
+      ): Promise<void> => {
+        this.jobsById.set(String(jobId), nextData);
+        return Promise.resolve();
+      },
+    });
+  }
 }
 
 @Workflow({ name: 'recovery-workflow' })
@@ -566,6 +673,21 @@ class RetryRestartsWholeFlowWorkflow {
 class JobOptionsWorkflow {
   run(input: { value: number }): Promise<number> {
     return Promise.resolve(input.value);
+  }
+}
+
+@Workflow({
+  name: 'result-queue-workflow',
+  resultQueue: {
+    jobName: 'workflow-result',
+    job: {
+      removeOnComplete: true,
+    },
+  },
+})
+class ResultQueueWorkflow {
+  run(input: { value: number }): Promise<{ value: number }> {
+    return Promise.resolve({ value: input.value + 1 });
   }
 }
 
@@ -1402,6 +1524,150 @@ describe('DozerEngine (library unit tests)', () => {
     }
   });
 
+  it('publishes completed workflow result to configured result queue', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const resultQueue = new CapturingResultQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          resultQueue,
+        }),
+        DozerModule.forFeature([ResultQueueWorkflow]),
+      ],
+    }).compile();
+
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start('result-queue-workflow', {
+        value: 10,
+      });
+
+      await expect(localEngine.run(jobId)).resolves.toEqual({ value: 11 });
+
+      expect(resultQueue.added).toHaveLength(1);
+      expect(resultQueue.added[0]).toMatchObject({
+        name: 'workflow-result',
+        data: {
+          jobId,
+          workflowName: 'result-queue-workflow',
+          result: { value: 11 },
+        },
+        options: {
+          jobId,
+          removeOnComplete: true,
+        },
+      });
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('keeps workflow in completing status when result queue publish fails and resumes finalize later', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const resultQueue = new FailOnceResultQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          resultQueue,
+        }),
+        DozerModule.forFeature([ResultQueueWorkflow]),
+      ],
+    }).compile();
+
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start('result-queue-workflow', {
+        value: 20,
+      });
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'result-queue-temporary-failure',
+      );
+      await expect(localEngine.getJobInfo(jobId)).resolves.toMatchObject({
+        id: jobId,
+        status: WORKFLOW_STATUS.completing,
+        statusName: 'completing',
+        result: { value: 21 },
+      });
+
+      await expect(localEngine.run(jobId)).resolves.toEqual({ value: 21 });
+      await expect(localEngine.getJobInfo(jobId)).resolves.toMatchObject({
+        id: jobId,
+        status: WORKFLOW_STATUS.completed,
+        statusName: 'completed',
+        result: { value: 21 },
+      });
+      expect(resultQueue.added).toHaveLength(1);
+      expect(resultQueue.added[0]?.options).toMatchObject({ jobId });
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('resumes completing workflow when result job already exists without creating duplicate', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const resultQueue = new DuplicateJobIdResultQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          resultQueue,
+        }),
+        DozerModule.forFeature([ResultQueueWorkflow]),
+      ],
+    }).compile();
+
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start('result-queue-workflow', {
+        value: 30,
+      });
+      const persistedResult = { value: 31 };
+
+      await resultQueue.add(
+        'workflow-result',
+        {
+          jobId,
+          workflowName: 'result-queue-workflow',
+          result: persistedResult,
+        },
+        { jobId },
+      );
+
+      const workflowJob = await localQueue.get(jobId);
+      await workflowJob?.updateData({
+        ...workflowJob?.data,
+        [DOZER_JOB_STATE_KEY]: {
+          s: WORKFLOW_STATUS.completing,
+          c: {},
+          a: {},
+          t: [],
+          r: persistedResult,
+        },
+      });
+
+      await expect(localEngine.run(jobId)).resolves.toEqual(persistedResult);
+      await expect(localEngine.getJobInfo(jobId)).resolves.toMatchObject({
+        id: jobId,
+        status: WORKFLOW_STATUS.completed,
+        statusName: 'completed',
+        result: persistedResult,
+      });
+      expect(resultQueue.added).toHaveLength(1);
+      expect(resultQueue.added[0]?.options).toMatchObject({ jobId });
+    } finally {
+      await localModule.close();
+    }
+  });
+
   it('restores binary and byte-array workflow inputs on replay', async () => {
     const stats = moduleRef.get(BinaryStats);
     const failOnce = moduleRef.get(FailOnceService);
@@ -1529,10 +1795,9 @@ describe('DozerEngine (library unit tests)', () => {
     await expect(engine.run(jobId)).rejects.toBeInstanceOf(NonDeterminismError);
 
     const job = await queue.get(jobId);
-    expect(job?.data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.failed);
-    expect(String(job?.data[DOZER_JOB_STATE_KEY]?.e ?? '')).toContain(
-      'result mismatch',
-    );
+    expect(job?.data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.completed);
+    expect(job?.data[DOZER_JOB_STATE_KEY]?.r).toBeDefined();
+    expect(job?.data[DOZER_JOB_STATE_KEY]?.e).toBeUndefined();
   });
 
   it('fails determinism probe when replay run is too slow', async () => {
@@ -1543,10 +1808,9 @@ describe('DozerEngine (library unit tests)', () => {
     await expect(engine.run(jobId)).rejects.toBeInstanceOf(NonDeterminismError);
 
     const job = await queue.get(jobId);
-    expect(job?.data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.failed);
-    expect(String(job?.data[DOZER_JOB_STATE_KEY]?.e ?? '')).toContain(
-      'exceeded max duration',
-    );
+    expect(job?.data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.completed);
+    expect(job?.data[DOZER_JOB_STATE_KEY]?.r).toBeDefined();
+    expect(job?.data[DOZER_JOB_STATE_KEY]?.e).toBeUndefined();
   });
 
   it('supports module-level defaults for worker determinism probe', async () => {
@@ -1579,7 +1843,8 @@ describe('DozerEngine (library unit tests)', () => {
         NonDeterminismError,
       );
       const job = await localQueue.get(jobId);
-      expect(job?.data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.failed);
+      expect(job?.data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.completed);
+      expect(job?.data[DOZER_JOB_STATE_KEY]?.r).toBeDefined();
     } finally {
       await localModule.close();
     }
@@ -1654,6 +1919,154 @@ describe('DozerClient module', () => {
         status: WORKFLOW_STATUS.cancelled,
         statusName: 'cancelled',
       });
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
+  it('reads and waits for workflow results from configured result queue', async () => {
+    const queue = new InMemoryWorkflowQueue();
+    const resultQueue = new DuplicateJobIdResultQueue();
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        DozerModule.forClient({
+          driver: queue,
+          resultQueue,
+        }),
+      ],
+    }).compile();
+
+    await moduleRef.init();
+
+    try {
+      const client = moduleRef.get(DozerClient);
+      const jobId = await client.start('external-result-workflow', {
+        id: 1,
+      });
+
+      await expect(client.hasResult(jobId)).resolves.toBe(false);
+      await expect(client.getResult(jobId)).resolves.toBeNull();
+
+      const resultQueueJobId = toWorkflowResultQueueJobId(jobId);
+      await resultQueue.add(
+        'workflow-result',
+        {
+          jobId,
+          workflowName: 'external-result-workflow',
+          result: {
+            __dozer_serialized__: 'date',
+            v: '2026-02-25T00:00:00.000Z',
+          },
+        },
+        { jobId: resultQueueJobId },
+      );
+
+      await expect(client.hasResult(jobId)).resolves.toBe(true);
+      await expect(client.getResultJob<Date>(jobId)).resolves.toMatchObject({
+        id: resultQueueJobId,
+        name: 'workflow-result',
+        jobId,
+        workflowName: 'external-result-workflow',
+      });
+      await expect(client.getResult<Date>(jobId)).resolves.toBeInstanceOf(Date);
+      await expect(client.waitForResult<Date>(jobId)).resolves.toBeInstanceOf(
+        Date,
+      );
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
+  it('fails fast in waitForResult when workflow reaches failed status without result payload', async () => {
+    const queue = new InMemoryWorkflowQueue();
+    const resultQueue = new DuplicateJobIdResultQueue();
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        DozerModule.forClient({
+          driver: queue,
+          resultQueue,
+        }),
+      ],
+    }).compile();
+
+    await moduleRef.init();
+
+    try {
+      const client = moduleRef.get(DozerClient);
+      const jobId = await client.start('external-result-workflow', {
+        id: 2,
+      });
+      const job = await queue.get(jobId);
+      await job?.updateData({
+        ...job.data,
+        [DOZER_JOB_STATE_KEY]: {
+          ...(job.data[DOZER_JOB_STATE_KEY] ?? { c: {}, a: {}, t: [] }),
+          s: WORKFLOW_STATUS.failed,
+          e: 'failed-for-test',
+        },
+      });
+
+      await expect(
+        client.waitForResult(jobId, { timeoutMs: 50, pollMs: 5 }),
+      ).rejects.toThrow('finished with status "failed"');
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
+  it('decodes result queue job payload and deserializes result for handler wrapper', async () => {
+    const rawJob = {
+      id: '$123',
+      name: 'workflow-result',
+      data: {
+        jobId: '123',
+        workflowName: 'my-workflow',
+        result: {
+          __dozer_serialized__: 'date',
+          v: '2026-02-25T00:00:00.000Z',
+        },
+      },
+    } as unknown as Parameters<typeof decodeWorkflowResultJob<Date>>[0];
+
+    const decoded = decodeWorkflowResultJob<Date>(rawJob);
+    expect(decoded).toMatchObject({
+      resultJobId: '$123',
+      resultJobName: 'workflow-result',
+      workflowJobId: '123',
+      workflowName: 'my-workflow',
+    });
+    expect(decoded.result).toBeInstanceOf(Date);
+
+    const handler = jest.fn<Promise<string>, [typeof decoded, typeof rawJob]>(
+      (message) => {
+        expect(message.result).toBeInstanceOf(Date);
+        return Promise.resolve('ok');
+      },
+    );
+    const processor = createWorkflowResultProcessor<Date, string>(handler);
+    await expect(processor(rawJob as never)).resolves.toBe('ok');
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires real BullMQ Queue instance for createResultWorker convenience method', async () => {
+    const queue = new InMemoryWorkflowQueue();
+    const resultQueue = new DuplicateJobIdResultQueue();
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        DozerModule.forClient({
+          driver: queue,
+          resultQueue,
+        }),
+      ],
+    }).compile();
+
+    await moduleRef.init();
+
+    try {
+      const client = moduleRef.get(DozerClient);
+      expect(() => client.createResultWorker(() => undefined)).toThrow(
+        'requires a real BullMQ Queue instance',
+      );
     } finally {
       await moduleRef.close();
     }

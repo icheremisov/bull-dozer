@@ -5,7 +5,6 @@ import {
   type Provider,
 } from '@nestjs/common';
 import { Queue, type ConnectionOptions } from 'bullmq';
-import { WORKFLOW_QUEUE_NAME } from 'dozer';
 import {
   createBullMqConnection,
   disconnectRedisClient,
@@ -16,7 +15,10 @@ import {
 import {
   EXAMPLE_REDIS_CONFIG,
   EXAMPLE_REDIS_CONNECTION,
+  EXAMPLE_RESULT_QUEUE,
+  EXAMPLE_RESULT_QUEUE_NAME,
   EXAMPLE_WORKFLOW_QUEUE,
+  EXAMPLE_WORKFLOW_QUEUE_NAME,
 } from './tokens';
 
 @Injectable()
@@ -24,12 +26,17 @@ class QueueLifecycleService implements OnApplicationShutdown {
   constructor(
     @Inject(EXAMPLE_WORKFLOW_QUEUE)
     private readonly queue: Queue,
+    @Inject(EXAMPLE_RESULT_QUEUE)
+    private readonly resultQueue: Queue,
     @Inject(EXAMPLE_REDIS_CONNECTION)
     private readonly connection: ConnectionOptions,
   ) {}
 
   async onApplicationShutdown(): Promise<void> {
     await this.queue.close().catch(() => {
+      // Queue may already be closed by test/perf runner code.
+    });
+    await this.resultQueue.close().catch(() => {
       // Queue may already be closed by test/perf runner code.
     });
 
@@ -54,7 +61,16 @@ export const queueProviders: Provider[] = [
   {
     provide: EXAMPLE_WORKFLOW_QUEUE,
     useFactory: (connection: ConnectionOptions): Queue => {
-      return new Queue(WORKFLOW_QUEUE_NAME, {
+      return new Queue(EXAMPLE_WORKFLOW_QUEUE_NAME, {
+        connection,
+      });
+    },
+    inject: [EXAMPLE_REDIS_CONNECTION],
+  },
+  {
+    provide: EXAMPLE_RESULT_QUEUE,
+    useFactory: (connection: ConnectionOptions): Queue => {
+      return new Queue(EXAMPLE_RESULT_QUEUE_NAME, {
         connection,
       });
     },

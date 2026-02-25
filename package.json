@@ -1,6 +1,6 @@
 {
   "name": "dozer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Deterministic workflow orchestration for NestJS with BullMQ",
   "license": "MIT",
   "main": "dist/index.js",
@@ -53,6 +53,7 @@
   "peerDependencies": {
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
+    "bullmq": "^5.34.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0"
   },
@@ -65,6 +66,7 @@
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
+    "bullmq": "^5.34.5",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

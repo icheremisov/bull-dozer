@@ -1,11 +1,19 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
-import { DOZER_JOB_STATE_KEY, WORKFLOW_STATUS, WorkflowJobData } from 'dozer';
+import {
+  DOZER_JOB_STATE_KEY,
+  WORKFLOW_STATUS,
+  WorkflowJobData,
+  WorkflowResultQueueJobData,
+} from 'dozer';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { setupBullBoard } from '../src/infra/bull-board';
-import { EXAMPLE_WORKFLOW_QUEUE } from '../src/infra/tokens';
+import {
+  EXAMPLE_RESULT_QUEUE,
+  EXAMPLE_WORKFLOW_QUEUE,
+} from '../src/infra/tokens';
 import { BranchSelectorService } from '../src/support/branch-selector.service';
 import { FailureMemoryService } from '../src/support/failure-memory.service';
 import { isRedisReachable, redisTestConfig } from './helpers/redis';
@@ -39,8 +47,16 @@ const waitForTerminalStatus = async (
     await sleep(100);
   }
 
+  const lastJob = await queue.getJob(jobId);
+  const lastQueueState = lastJob ? await lastJob.getState() : 'missing';
+  const lastCompactState = lastJob?.data?.[DOZER_JOB_STATE_KEY];
+  const failedReason =
+    lastJob && 'failedReason' in lastJob
+      ? String((lastJob as unknown as { failedReason?: unknown }).failedReason)
+      : undefined;
+
   throw new Error(
-    `Timed out waiting for job ${jobId} to reach terminal status.`,
+    `Timed out waiting for job ${jobId} to reach terminal status. queueState=${String(lastQueueState)} compactState=${JSON.stringify(lastCompactState)} failedReason=${failedReason ?? 'n/a'}`,
   );
 };
 
@@ -50,6 +66,7 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
   let moduleRef: TestingModule;
   let app: INestApplication;
   let queue: Queue<WorkflowJobData<unknown>>;
+  let resultQueue: Queue<WorkflowResultQueueJobData<unknown>>;
   let branchSelector: BranchSelectorService;
   let failureMemory: FailureMemoryService;
   let redisAvailable = false;
@@ -85,7 +102,9 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
     app = moduleRef.createNestApplication();
     app.useLogger(false);
     queue = app.get<Queue<WorkflowJobData<unknown>>>(EXAMPLE_WORKFLOW_QUEUE);
-    setupBullBoard(app, queue);
+    resultQueue =
+      app.get<Queue<WorkflowResultQueueJobData<unknown>>>(EXAMPLE_RESULT_QUEUE);
+    setupBullBoard(app, [queue, resultQueue]);
     await app.init();
     branchSelector = app.get(BranchSelectorService);
     failureMemory = app.get(FailureMemoryService);
@@ -107,6 +126,7 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
 
     await app.close();
     await queue.close();
+    await resultQueue.close();
   }, 20000);
 
   integrationTest('runs simple workflow and stores compact state', async () => {
@@ -124,6 +144,127 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
     expect(compactState?.c['1:process']).toBeDefined();
     expect(compactState?.c['2:store']).toBeDefined();
   });
+
+  integrationTest(
+    'publishes workflow result into separate result queue with deterministic jobId',
+    async () => {
+      const start = await request(app.getHttpServer())
+        .post('/workflows/result-queue/start')
+        .send({ value: 10 })
+        .expect(201);
+
+      const { jobId } = start.body as { jobId: string };
+      const data = await waitForTerminalStatus(queue, jobId);
+      expect(data[DOZER_JOB_STATE_KEY]?.s).toBe(WORKFLOW_STATUS.completed);
+
+      const resultQueueJobId = toResultQueueJobId(jobId);
+      const resultJob = await resultQueue.getJob(resultQueueJobId);
+      expect(resultJob).toBeDefined();
+      expect(String(resultJob?.id)).toBe(resultQueueJobId);
+      expect(resultJob?.name).toBe('workflow-result');
+      expect(resultJob?.data).toEqual({
+        jobId,
+        workflowName: 'result-queue',
+        result: {
+          ok: true,
+          value: 11,
+        },
+      });
+    },
+  );
+
+  integrationTest('exposes result queue job via HTTP endpoint', async () => {
+    const start = await request(app.getHttpServer())
+      .post('/workflows/result-queue/start')
+      .send({ value: 41 })
+      .expect(201);
+
+    const { jobId } = start.body as { jobId: string };
+    await waitForTerminalStatus(queue, jobId);
+
+    const response = await request(app.getHttpServer())
+      .get(`/workflows/results/${jobId}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      found: true,
+      id: toResultQueueJobId(jobId),
+      name: 'workflow-result',
+      data: {
+        jobId,
+        workflowName: 'result-queue',
+        result: {
+          ok: true,
+          value: 42,
+        },
+      },
+    });
+  });
+
+  integrationTest(
+    'resumes completing workflow when result queue job already exists without duplicate',
+    async () => {
+      const start = await request(app.getHttpServer())
+        .post('/workflows/result-queue/start')
+        .send({ value: 50 })
+        .expect(201);
+
+      const { jobId } = start.body as { jobId: string };
+      const completedData = await waitForTerminalStatus(queue, jobId);
+      expect(completedData[DOZER_JOB_STATE_KEY]?.s).toBe(
+        WORKFLOW_STATUS.completed,
+      );
+
+      const resultQueueJobId = toResultQueueJobId(jobId);
+      const existingResultJob = await resultQueue.getJob(resultQueueJobId);
+      expect(existingResultJob).toBeDefined();
+
+      const workflowJob = await queue.getJob(jobId);
+      expect(workflowJob).toBeDefined();
+      const compactState = workflowJob?.data[DOZER_JOB_STATE_KEY];
+      expect(compactState?.r).toEqual({
+        ok: true,
+        value: 51,
+      });
+
+      await workflowJob?.updateData({
+        ...workflowJob?.data,
+        [DOZER_JOB_STATE_KEY]: {
+          ...(compactState ?? { c: {}, t: [] }),
+          s: WORKFLOW_STATUS.completing,
+        },
+      });
+
+      const resultQueueCountBeforeReplay = await resultQueue.count();
+
+      await request(app.getHttpServer())
+        .post(`/workflows/${jobId}/replay`)
+        .send({})
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.result).toEqual({
+            ok: true,
+            value: 51,
+          });
+        });
+
+      const replayedData = await waitForTerminalStatus(queue, jobId);
+      expect(replayedData[DOZER_JOB_STATE_KEY]?.s).toBe(
+        WORKFLOW_STATUS.completed,
+      );
+      expect(replayedData[DOZER_JOB_STATE_KEY]?.r).toEqual({
+        ok: true,
+        value: 51,
+      });
+
+      const resultQueueCountAfterReplay = await resultQueue.count();
+      expect(resultQueueCountAfterReplay).toBe(resultQueueCountBeforeReplay);
+
+      const resultJob = await resultQueue.getJob(resultQueueJobId);
+      expect(resultJob).toBeDefined();
+      expect(resultJob?.data).toEqual(existingResultJob?.data);
+    },
+  );
 
   integrationTest('supports various workflow input types', async () => {
     const cases = [
@@ -365,3 +506,10 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
     expect(String(response.text)).toContain('Bull Dashboard');
   });
 });
+const toResultQueueJobId = (workflowJobId: string): string => {
+  if (/^\d+$/.test(workflowJobId)) {
+    return `#${workflowJobId}`;
+  }
+
+  return workflowJobId;
+};

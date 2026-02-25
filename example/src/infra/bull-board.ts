@@ -3,7 +3,6 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { createBullBoard } from '@bull-board/api';
 import { ExpressAdapter } from '@bull-board/express';
 import { Queue, type ConnectionOptions } from 'bullmq';
-import { WorkflowJobData } from 'dozer';
 import Redis, { type RedisOptions } from 'ioredis';
 import {
   createRedisClient,
@@ -15,6 +14,52 @@ import {
 
 export const BULL_BOARD_BASE_PATH = '/admin/queues';
 const BULL_BOARD_REFRESH_MS = 5000;
+const DISCOVERY_CONNECT_TIMEOUT_MS = 3000;
+
+const waitForRedisClientReady = async (
+  client: ExampleRedisClient,
+): Promise<void> => {
+  const candidate = client as unknown as {
+    status?: string;
+    once?: (event: string, listener: (...args: unknown[]) => void) => unknown;
+    off?: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  };
+  if (candidate.status === 'ready') {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const onReady = (): void => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error: unknown): void => {
+      cleanup();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+    const onClose = (): void => {
+      cleanup();
+      reject(new Error('Redis discovery client closed before connect.'));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timed out waiting for Redis discovery client.'));
+    }, DISCOVERY_CONNECT_TIMEOUT_MS);
+
+    const cleanup = (): void => {
+      clearTimeout(timeout);
+      candidate.off?.('ready', onReady);
+      candidate.off?.('error', onError);
+      candidate.off?.('close', onClose);
+      candidate.off?.('end', onClose);
+    };
+
+    candidate.once?.('ready', onReady);
+    candidate.once?.('error', onError);
+    candidate.once?.('close', onClose);
+    candidate.once?.('end', onClose);
+  });
+};
 
 const collectQueueNamesFromScan = async (
   redis: Redis,
@@ -67,29 +112,30 @@ const discoverQueueNames = async (
 
 export const setupBullBoard = (
   app: INestApplication,
-  queue: Queue<WorkflowJobData<unknown>>,
+  queues: Queue | Queue[],
   connection?: ConnectionOptions,
   redisConfig?: ExampleRedisConfig,
 ): void => {
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath(BULL_BOARD_BASE_PATH);
 
-  const queueRegistry = new Map<string, Queue<unknown>>([
-    [queue.name, queue as unknown as Queue<unknown>],
-  ]);
-  const getQueue = (name: string): Queue<unknown> => {
+  const knownQueues: Queue[] = Array.isArray(queues) ? queues : [queues];
+  const queueRegistry = new Map<string, Queue>(
+    knownQueues.map((queue) => [queue.name, queue]),
+  );
+  const getQueue = (name: string): Queue => {
     const existing = queueRegistry.get(name);
     if (existing) {
       return existing;
     }
 
     if (!connection) {
-      return queue as unknown as Queue<unknown>;
+      return knownQueues[0];
     }
 
     const created = new Queue(name, {
       connection,
-    }) as unknown as Queue<unknown>;
+    });
     queueRegistry.set(name, created);
     return created;
   };
@@ -98,7 +144,7 @@ export const setupBullBoard = (
   };
 
   const board = createBullBoard({
-    queues: toAdapters([queue.name]),
+    queues: toAdapters(Array.from(queueRegistry.keys())),
     serverAdapter,
   });
 
@@ -127,6 +173,18 @@ export const setupBullBoard = (
     }
 
     try {
+      const clientWithConnect = temporaryClient as unknown as {
+        connect?: () => Promise<unknown>;
+      };
+      if (typeof clientWithConnect.connect === 'function') {
+        try {
+          await clientWithConnect.connect();
+        } catch {
+          // Auto-connect may already be in progress/connected.
+        }
+      }
+      await waitForRedisClientReady(temporaryClient);
+
       return await callback(temporaryClient);
     } finally {
       await disconnectRedisClient(temporaryClient);
@@ -137,17 +195,23 @@ export const setupBullBoard = (
     const discoveredQueues =
       (await withDiscoveryClient(discoverQueueNames)) ?? [];
     const queueNames = Array.from(
-      new Set<string>([queue.name, ...discoveredQueues]),
+      new Set<string>([...queueRegistry.keys(), ...discoveredQueues]),
     );
     board.setQueues(toAdapters(queueNames));
   };
 
-  void syncQueues().catch(() => {
+  void syncQueues().catch((error: unknown) => {
     // Keep dashboard alive even if discovery fails.
+    if (process.env.BULL_BOARD_DEBUG === '1') {
+      console.warn('[bull-board] queue discovery failed', error);
+    }
   });
   const refreshTimer = setInterval(() => {
-    void syncQueues().catch(() => {
+    void syncQueues().catch((error: unknown) => {
       // Do not crash app on temporary Redis scan issues.
+      if (process.env.BULL_BOARD_DEBUG === '1') {
+        console.warn('[bull-board] queue discovery refresh failed', error);
+      }
     });
   }, BULL_BOARD_REFRESH_MS);
   refreshTimer.unref();

@@ -45,7 +45,8 @@ const isWorkflowStatusCode = (
     value === WORKFLOW_STATUS.running ||
     value === WORKFLOW_STATUS.failed ||
     value === WORKFLOW_STATUS.completed ||
-    value === WORKFLOW_STATUS.cancelled
+    value === WORKFLOW_STATUS.cancelled ||
+    value === WORKFLOW_STATUS.completing
   );
 };
 
@@ -116,6 +117,20 @@ export class WorkflowStateStore<TInput = unknown> {
     await this.flush();
   }
 
+  async markPublishingResult(result: unknown): Promise<void> {
+    this.state.s = WORKFLOW_STATUS.completing;
+    this.state.r = await serializeForStorage(result, 'workflow result');
+    this.state.e = undefined;
+    await this.flush();
+  }
+
+  async markCompletedFromStoredResult(): Promise<void> {
+    this.state.s = WORKFLOW_STATUS.completed;
+    this.state.e = undefined;
+    this.compactDescendantStepCache();
+    await this.flush();
+  }
+
   async markFailed(error: unknown): Promise<void> {
     this.state.s = WORKFLOW_STATUS.failed;
     this.state.r = undefined;
@@ -169,8 +184,10 @@ export class WorkflowStateStore<TInput = unknown> {
       ...Object.keys(this.state.c),
       ...Object.keys(this.state.u ?? {}),
     ].sort((left, right) => {
-      return extractStepPath(left).split('.').length -
-        extractStepPath(right).split('.').length;
+      return (
+        extractStepPath(left).split('.').length -
+        extractStepPath(right).split('.').length
+      );
     });
 
     for (const stepKey of stepKeys) {

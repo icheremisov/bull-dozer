@@ -1,4 +1,12 @@
 import { DOZER_JOB_INPUT_KEY, DOZER_JOB_STATE_KEY } from '../constants';
+import type {
+  BackoffOptions,
+  DeduplicationOptions,
+  JobsOptions,
+  KeepJobs,
+  ParentOptions,
+  RepeatOptions,
+} from 'bullmq';
 
 export const WORKFLOW_STATUS = {
   pending: 0,
@@ -6,6 +14,7 @@ export const WORKFLOW_STATUS = {
   failed: 2,
   completed: 3,
   cancelled: 4,
+  completing: 5,
 } as const;
 
 export type WorkflowStatusCode =
@@ -27,7 +36,12 @@ export interface WorkflowJobData<TInput = unknown> {
   [DOZER_JOB_STATE_KEY]?: CompactWorkflowState;
 }
 
-export type WorkflowJobOptions = Record<string, unknown>;
+export type WorkflowKeepJobsOptions = KeepJobs;
+export type WorkflowJobBackoffOptions = BackoffOptions;
+export type WorkflowJobParentOptions = ParentOptions;
+export type WorkflowJobDeduplicationOptions = DeduplicationOptions;
+export type WorkflowJobRepeatOptions = RepeatOptions;
+export type WorkflowJobOptions = JobsOptions;
 
 export interface WorkflowJob<TInput = unknown> {
   id: string;
@@ -46,6 +60,28 @@ export interface WorkflowJobInfo<TResult = unknown> {
   error?: string;
 }
 
+export interface WorkflowResultQueueJobData<TResult = unknown> {
+  jobId: string;
+  workflowName: string;
+  result: TResult;
+}
+
+export interface WorkflowResultQueueJobInfo<TResult = unknown> {
+  id: string;
+  name: string;
+  jobId: string;
+  workflowName: string;
+  result: TResult;
+}
+
+export const toWorkflowResultQueueJobId = (workflowJobId: string): string => {
+  if (/^\d+$/.test(workflowJobId)) {
+    return `#${workflowJobId}`;
+  }
+
+  return workflowJobId;
+};
+
 export interface WorkflowQueueDriver {
   add<TInput = unknown>(
     workflowName: string,
@@ -60,6 +96,7 @@ export interface BullMQJobLike<TData> {
   name: string;
   data: TData;
   updateData(data: TData): Promise<void>;
+  getState?(): Promise<string>;
 }
 
 export interface BullMQQueueLike<TData> {

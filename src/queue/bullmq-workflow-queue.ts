@@ -8,10 +8,14 @@ import {
 } from './workflow-queue';
 
 class BullMQWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
+  private dataSnapshot: WorkflowJobData<TInput>;
+
   constructor(
     private readonly job: BullMQJobLike<WorkflowJobData<TInput>>,
     public readonly options?: WorkflowJobOptions,
-  ) {}
+  ) {
+    this.dataSnapshot = job.data;
+  }
 
   get id(): string {
     if (this.job.id === undefined || this.job.id === null) {
@@ -26,11 +30,12 @@ class BullMQWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
   }
 
   get data(): WorkflowJobData<TInput> {
-    return this.job.data;
+    return this.dataSnapshot;
   }
 
   async updateData(data: WorkflowJobData<TInput>): Promise<void> {
     await this.job.updateData(data);
+    this.dataSnapshot = data;
   }
 }
 

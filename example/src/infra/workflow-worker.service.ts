@@ -1,15 +1,20 @@
 import {
   Inject,
   Injectable,
+  OnApplicationBootstrap,
   OnModuleDestroy,
-  OnModuleInit,
 } from '@nestjs/common';
 import { Worker, type ConnectionOptions } from 'bullmq';
-import { DozerEngine, WORKFLOW_QUEUE_NAME } from 'dozer';
-import { EXAMPLE_REDIS_CONNECTION } from './tokens';
+import { DozerEngine } from 'dozer';
+import {
+  EXAMPLE_REDIS_CONNECTION,
+  EXAMPLE_WORKFLOW_QUEUE_NAME,
+} from './tokens';
 
 @Injectable()
-export class WorkflowWorkerService implements OnModuleInit, OnModuleDestroy {
+export class WorkflowWorkerService
+  implements OnApplicationBootstrap, OnModuleDestroy
+{
   private worker?: Worker;
 
   constructor(
@@ -18,9 +23,9 @@ export class WorkflowWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly connection: ConnectionOptions,
   ) {}
 
-  onModuleInit(): void {
+  onApplicationBootstrap(): void {
     this.worker = new Worker(
-      WORKFLOW_QUEUE_NAME,
+      EXAMPLE_WORKFLOW_QUEUE_NAME,
       async (job) => {
         await this.engine.run(String(job.id));
       },

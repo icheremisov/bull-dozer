@@ -4,7 +4,7 @@ import { DozerModule } from 'dozer';
 import { AppController } from './app.controller';
 import { QueueModule } from './infra/queue.module';
 import { WorkflowWorkerService } from './infra/workflow-worker.service';
-import { EXAMPLE_WORKFLOW_QUEUE } from './infra/tokens';
+import { EXAMPLE_RESULT_QUEUE, EXAMPLE_WORKFLOW_QUEUE } from './infra/tokens';
 import { BranchSelectorService } from './support/branch-selector.service';
 import { FailureMemoryService } from './support/failure-memory.service';
 import { ScenarioControlsService } from './support/scenario-controls.service';
@@ -33,6 +33,8 @@ import { ParentDeepWorkflow } from './workflows/parent-deep.workflow';
 import { ParentWorkflow } from './workflows/parent.workflow';
 import { RecursiveWorkflow } from './workflows/recursive.workflow';
 import { ReplayWorkflow } from './workflows/replay.workflow';
+import { ResultQueueWorkflow } from './workflows/result-queue.workflow';
+import { ResultQueueTypedWorkflow } from './workflows/result-queue-typed.workflow';
 import { RepeatedStepWorkflow } from './workflows/repeated-step.workflow';
 import { RunSourceNondeterministicWorkflow } from './workflows/run-source-nondeterministic.workflow';
 import { SimpleWorkflow } from './workflows/simple.workflow';
@@ -48,9 +50,10 @@ import { VersionedLogicWorkflow } from './workflows/versioned-logic.workflow';
     QueueModule,
     DozerModule.forRootAsync({
       imports: [QueueModule],
-      inject: [EXAMPLE_WORKFLOW_QUEUE],
-      useFactory: (queue: Queue) => ({
+      inject: [EXAMPLE_WORKFLOW_QUEUE, EXAMPLE_RESULT_QUEUE],
+      useFactory: (queue: Queue, resultQueue: Queue) => ({
         queue,
+        resultQueue,
       }),
     }),
     DozerModule.forFeature(
@@ -62,6 +65,8 @@ import { VersionedLogicWorkflow } from './workflows/versioned-logic.workflow';
         FlakyWorkflow,
         LongRunningWorkflow,
         ReplayWorkflow,
+        ResultQueueWorkflow,
+        ResultQueueTypedWorkflow,
         RepeatedStepWorkflow,
         NonDeterministicWorkflow,
         NoStepWorkflow,

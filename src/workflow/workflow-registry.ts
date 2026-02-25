@@ -1,5 +1,8 @@
 import { Injectable, Type } from '@nestjs/common';
-import { WorkflowExecutionOptions } from '../decorators/workflow.decorator';
+import {
+  WorkflowExecutionOptions,
+  WorkflowResultQueueOptions,
+} from '../decorators/workflow.decorator';
 import { WorkflowNotRegisteredError } from '../errors/workflow-not-registered.error';
 import { WorkflowJobOptions } from '../queue/workflow-queue';
 
@@ -10,6 +13,7 @@ export interface RunnableWorkflow {
 export interface RegisteredWorkflowOptions {
   job?: WorkflowJobOptions;
   execution?: WorkflowExecutionOptions;
+  resultQueue?: WorkflowResultQueueOptions;
 }
 
 export interface RegisteredWorkflow {

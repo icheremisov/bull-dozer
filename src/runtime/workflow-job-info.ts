@@ -15,6 +15,7 @@ const STATUS_NAME_BY_CODE: Record<WorkflowStatusCode, WorkflowStatusName> = {
   [WORKFLOW_STATUS.failed]: 'failed',
   [WORKFLOW_STATUS.completed]: 'completed',
   [WORKFLOW_STATUS.cancelled]: 'cancelled',
+  [WORKFLOW_STATUS.completing]: 'completing',
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -25,7 +26,9 @@ const isWorkflowStatusCode = (value: unknown): value is WorkflowStatusCode => {
   return Object.values(WORKFLOW_STATUS).includes(value as WorkflowStatusCode);
 };
 
-const isCompactWorkflowState = (value: unknown): value is CompactWorkflowState => {
+const isCompactWorkflowState = (
+  value: unknown,
+): value is CompactWorkflowState => {
   if (!isRecord(value)) {
     return false;
   }
@@ -65,7 +68,9 @@ export const getWorkflowJobInfo = <TResult = unknown>(
     status,
     statusName: STATUS_NAME_BY_CODE[status],
     result:
-      status === WORKFLOW_STATUS.completed && 'r' in state
+      (status === WORKFLOW_STATUS.completed ||
+        status === WORKFLOW_STATUS.completing) &&
+      'r' in state
         ? (deserializeFromStorage(state.r) as TResult)
         : undefined,
     error:
