@@ -1,6 +1,6 @@
 {
   "name": "dozer",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Deterministic workflow orchestration for NestJS with BullMQ",
   "license": "MIT",
   "main": "dist/index.js",

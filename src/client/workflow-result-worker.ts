@@ -87,6 +87,7 @@ export interface CreateWorkflowResultWorkerOptions<
   connection: ConnectionOptions;
   handler: WorkflowResultHandler<TResult, TReturn>;
   worker?: Omit<WorkerOptions, 'connection'>;
+  prefix?: string;
 }
 
 export const createWorkflowResultWorker = <
@@ -101,6 +102,7 @@ export const createWorkflowResultWorker = <
     {
       ...(options.worker ?? {}),
       connection: options.connection,
+      ...(options.prefix ? { prefix: options.prefix } : {}),
     },
   );
 };

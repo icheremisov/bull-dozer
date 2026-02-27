@@ -218,11 +218,14 @@ export class DozerClient {
       );
     }
 
+    const prefix = resultQueue.opts?.prefix;
+
     return createWorkflowResultWorker<TResult, TReturn>({
       queueName: resultQueue.name,
       connection,
       handler,
       worker: workerOptions,
+      prefix,
     });
   }
 
