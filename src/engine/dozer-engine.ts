@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import { Inject, Injectable } from '@nestjs/common';
+import { DelayedError } from 'bullmq';
 import {
   DOZER_JOB_INPUT_KEY,
   DOZER_MODULE_OPTIONS,
@@ -10,6 +11,8 @@ import type { DozerModuleOptions } from '../dozer.module';
 import { WorkflowExecutionOptions } from '../decorators/workflow.decorator';
 import { NonDeterminismError } from '../errors/non-determinism.error';
 import { NonRetryableError } from '../errors/non-retryable.error';
+import { WorkflowSleepRequestedError } from '../errors/workflow-sleep-requested.error';
+import { WorkflowSignalWaitRequestedError } from '../errors/workflow-signal-wait-requested.error';
 import { WORKFLOW_STATUS } from '../queue/workflow-queue';
 import type {
   WorkflowJobInfo,
@@ -393,7 +396,11 @@ export class DozerEngine {
     }
   }
 
-  async run(jobId: string): Promise<unknown> {
+  private resolveDefaultSignalTimeoutMs(): number {
+    return this.moduleOptions.defaults?.signalTimeoutMs ?? 7 * 24 * 60 * 60 * 1000;
+  }
+
+  async run(jobId: string, token?: string): Promise<unknown> {
     const job = await this.queue.get(jobId);
     if (!job) {
       throw new WorkflowJobNotFoundError(jobId);
@@ -459,6 +466,8 @@ export class DozerEngine {
         await this.runDeterminismProbe(job, definition, executionOptions);
         return result;
       } catch (error) {
+        if (error instanceof DelayedError) throw error;
+
         if (error instanceof WorkflowResultPublishStageError) {
           throw asThrownError(error.causeError ?? error);
         }
@@ -469,6 +478,18 @@ export class DozerEngine {
 
         if (error instanceof WorkflowDeterminismProbeStageError) {
           throw asThrownError(error.causeError ?? error);
+        }
+
+        if (error instanceof WorkflowSleepRequestedError) {
+          await this.queue.moveToDelayed(jobId, error.wakeUpAt, token);
+          throw new DelayedError();
+        }
+
+        if (error instanceof WorkflowSignalWaitRequestedError) {
+          const deadline =
+            error.expiresAt ?? Date.now() + this.resolveDefaultSignalTimeoutMs();
+          await this.queue.moveToDelayed(jobId, deadline, token);
+          throw new DelayedError();
         }
 
         if (error instanceof WorkflowRetryRequestedError) {

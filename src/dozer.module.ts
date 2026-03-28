@@ -31,6 +31,7 @@ import { WorkflowRegistry } from './workflow/workflow-registry';
 export interface DozerDefaultsOptions {
   job?: WorkflowJobOptions;
   execution?: WorkflowExecutionOptions;
+  signalTimeoutMs?: number; // default: 7 days
 }
 
 export interface DozerModuleOptions {
