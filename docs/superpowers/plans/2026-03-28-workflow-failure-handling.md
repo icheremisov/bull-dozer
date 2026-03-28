@@ -1031,3 +1031,547 @@ Expected: build succeeds with no errors.
 git add package.json
 git commit -m "chore: bump version to 0.6.0"
 ```
+
+---
+
+## Task 8: Split `src/dozer-engine.spec.ts` into focused spec files
+
+**Goal:** `src/dozer-engine.spec.ts` is 2473 lines and mixes tests for core mechanics, retries, serialization, result queue, determinism, failure handling, module registration, and client — all in one monolithic file. Split into focused files so each file covers one concern.
+
+**Files:**
+- Create: `src/test/workflow-test-utils.ts` — shared test infrastructure used by multiple spec files
+- Modify: `src/dozer-engine.spec.ts` — keep only core mechanics tests
+- Create: `src/dozer-engine-retries.spec.ts` — step/workflow retry behavior
+- Create: `src/dozer-engine-serialization.spec.ts` — input/output serialization
+- Create: `src/dozer-engine-result-queue.spec.ts` — result queue success path
+- Create: `src/dozer-engine-determinism.spec.ts` — non-determinism detection and determinism probe
+- Create: `src/dozer-engine-failure.spec.ts` — failure handling (onFailed, global callback, publishOnFailure)
+- Create: `src/dozer-module.spec.ts` — module registration constraint tests
+- Create: `src/dozer-client.spec.ts` — DozerClient module tests
+
+**Before you begin:** Read `src/dozer-engine.spec.ts` in full to understand what's there. The file starts with imports (lines 1-25), shared helpers (lines 27-93), shared test infrastructure classes (lines 94-198), fixture classes (lines 200-1041), then three `describe` blocks: `'DozerEngine (library unit tests)'` (line 1042), `'DozerModule registration constraints'` (line 2250), `'DozerClient module'` (line 2270).
+
+---
+
+- [ ] **Step 1: Create `src/test/workflow-test-utils.ts`**
+
+This file holds test infrastructure shared by multiple spec files. Copy the following from `src/dozer-engine.spec.ts` exactly (do not change the code):
+
+- `sleep` function (currently lines 27-29)
+- `CapturingResultQueue` class (lines 94-131)
+- `FailOnceResultQueue` class (lines 133-148)
+- `DuplicateJobIdResultQueue` class (lines 150-198)
+- `FailOnceService` class (lines 46-63) — used in both core and retry spec files
+
+The file needs these imports:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+  BullMQQueueLike,
+  WorkflowJobOptions,
+  WorkflowResultQueueJobData,
+} from '../index';
+```
+
+Export all five items with `export`.
+
+- [ ] **Step 2: Verify the shared utils file compiles**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: no errors.
+
+---
+
+- [ ] **Step 3: Create `src/dozer-engine-failure.spec.ts`**
+
+This file tests failure callbacks and failure result queue publishing. All 9 tests in this group already use `localModule` pattern (no shared `beforeEach` needed).
+
+**Tests to include** (exact `it()` descriptions):
+- `'calls onFailed method with error, input, and jobId on terminal failure'`
+- `'suppresses errors thrown inside onFailed and still throws original error'`
+- `'does not crash when workflow has no onFailed method'`
+- `'calls onFailed when NonRetryableError is thrown'`
+- `'calls global onWorkflowFailed callback on terminal failure'`
+- `'suppresses errors thrown inside global onWorkflowFailed callback'`
+- `'calls global onWorkflowFailed when NonRetryableError is thrown'`
+- `'publishes failure payload to result queue when publishOnFailure is true'`
+- `'does not publish to result queue on failure when publishOnFailure is false'`
+
+**Fixture classes to copy** from `src/dozer-engine.spec.ts`:
+- `OnFailedSpy` (lines 200-205)
+- `OnFailedWorkflow` (lines 206-230)
+- `OnFailedNonRetryableWorkflow` (lines 231-248)
+- `NoOnFailedWorkflow` (lines 249-260)
+- `GlobalCallbackWorkflow` (lines 261-272)
+- `GlobalCallbackNonRetryableWorkflow` (lines 273-284)
+- `FailurePublishWorkflow` (lines ~1003-1018, the `@Workflow({ name: 'failure-publish-workflow'...})` class)
+- `FailureNoPublishWorkflow` (lines ~1020-1041, the `@Workflow({ name: 'failure-no-publish-workflow'...})` class)
+
+**Imports needed:**
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import {
+  DozerEngine,
+  DozerModule,
+  InMemoryWorkflowQueue,
+  NonRetryableError,
+  Step,
+  Workflow,
+} from './index';
+import { CapturingResultQueue } from './test/workflow-test-utils';
+```
+
+Wrap all tests in `describe('DozerEngine failure handling', () => { ... })`.
+
+- [ ] **Step 4: Run failure spec to confirm it passes**
+
+```bash
+npx jest --testPathPattern=dozer-engine-failure --verbose
+```
+
+Expected: 9 tests pass.
+
+---
+
+- [ ] **Step 5: Create `src/dozer-engine-result-queue.spec.ts`**
+
+This file tests result queue publishing on success (the success path). All 3 tests create their own `localModule`.
+
+**Tests to include:**
+- `'publishes completed workflow result to configured result queue'`
+- `'keeps workflow in completing status when result queue publish fails and resumes finalize later'`
+- `'resumes completing workflow when result job already exists without creating duplicate'`
+
+**Fixture classes to copy:**
+- `ResultQueueWorkflow` (lines ~778-783, the `@Workflow({ name: 'result-queue-workflow', resultQueue: { jobName: 'workflow-result' } })` class)
+
+**Imports needed:**
+
+```typescript
+import { Test } from '@nestjs/testing';
+import {
+  DozerEngine,
+  DozerModule,
+  InMemoryWorkflowQueue,
+  Step,
+  toWorkflowResultQueueJobId,
+  Workflow,
+  WorkflowJobOptions,
+} from './index';
+import {
+  CapturingResultQueue,
+  DuplicateJobIdResultQueue,
+  FailOnceResultQueue,
+} from './test/workflow-test-utils';
+```
+
+Wrap in `describe('DozerEngine result queue', () => { ... })`.
+
+- [ ] **Step 6: Run result queue spec**
+
+```bash
+npx jest --testPathPattern=dozer-engine-result-queue --verbose
+```
+
+Expected: 3 tests pass.
+
+---
+
+- [ ] **Step 7: Create `src/dozer-engine-determinism.spec.ts`**
+
+Tests for non-determinism detection and the determinism probe feature.
+
+**Tests to include:**
+- `'detects non-deterministic replay'`
+- `'replays cached nested steps without trace conflicts'`
+- `'runs determinism probe after completion and reuses cached step results'`
+- `'fails determinism probe when replayed result diverges'`
+- `'fails determinism probe when replay run is too slow'`
+- `'supports module-level defaults for worker determinism probe'`
+
+The first 5 tests use the shared `moduleRef`/`engine`. The 6th (`'supports module-level defaults...'`) uses a `localModule`.
+
+**Fixture classes to copy:**
+- `NestedReplayStats` (lines 70-76)
+- `DeterminismProbeStats` (lines 77-81)
+- `NonDeterministicWorkflow` (lines 405-441, the `@Workflow({ name: 'nondeterministic-workflow' })` class)
+- `NestedReplayWorkflow` (lines 628-663)
+- `DeterminismProbeStableWorkflow` (lines ~784-804)
+- `DeterminismProbeRandomWorkflow` (lines ~805-817)
+- `DeterminismProbeSlowWorkflow` (lines ~818-831)
+- `GlobalDeterminismProbeRandomWorkflow` (lines ~832-838)
+
+**Module setup** — add `beforeEach`/`afterEach` that registers a `DozerModule` with only these workflows:
+
+```typescript
+let moduleRef: TestingModule;
+let queue: InMemoryWorkflowQueue;
+let engine: DozerEngine;
+
+beforeEach(async () => {
+  queue = new InMemoryWorkflowQueue();
+  moduleRef = await Test.createTestingModule({
+    imports: [
+      DozerModule.forRoot({ driver: queue }),
+      DozerModule.forFeature(
+        [
+          NonDeterministicWorkflow,
+          NestedReplayWorkflow,
+          DeterminismProbeStableWorkflow,
+          DeterminismProbeRandomWorkflow,
+          DeterminismProbeSlowWorkflow,
+          GlobalDeterminismProbeRandomWorkflow,
+        ],
+        [NestedReplayStats, DeterminismProbeStats],
+      ),
+    ],
+  }).compile();
+  await moduleRef.init();
+  engine = moduleRef.get(DozerEngine);
+});
+
+afterEach(async () => {
+  if (moduleRef) await moduleRef.close();
+});
+```
+
+**Imports needed:**
+
+```typescript
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  DOZER_JOB_STATE_KEY,
+  DozerEngine,
+  DozerModule,
+  InMemoryWorkflowQueue,
+  NonDeterminismError,
+  Step,
+  StepReplayConflictError,
+  Workflow,
+  WORKFLOW_STATUS,
+} from './index';
+import { sleep } from './test/workflow-test-utils';
+```
+
+Wrap in `describe('DozerEngine determinism', () => { ... })`.
+
+- [ ] **Step 8: Run determinism spec**
+
+```bash
+npx jest --testPathPattern=dozer-engine-determinism --verbose
+```
+
+Expected: 6 tests pass.
+
+---
+
+- [ ] **Step 9: Create `src/dozer-engine-serialization.spec.ts`**
+
+Tests for binary, typed-array, Date, and non-serializable input/output handling.
+
+**Tests to include:**
+- `'restores binary and byte-array workflow inputs on replay'`
+- `'restores typed-array step results on replay'`
+- `'rejects non-serializable workflow input values'`
+- `'fails workflow when step result is non-serializable'`
+- `'serializes and restores Date in workflow input'`
+- `'serializes and restores Date step results on replay'`
+
+All 6 tests use the shared `moduleRef`/`engine`.
+
+**Fixture classes to copy:**
+- `BinaryStats` (lines 64-69)
+- `BinaryInputWorkflow` (lines 442-502)
+- `TypedArrayResultWorkflow` (lines 503-543)
+- `NonSerializableStepResultWorkflow` (lines 544-557)
+- `DatePayloadWorkflow` (lines 558-591)
+- `DateStepResultWorkflow` (lines 592-627)
+
+**Module setup** — `beforeEach` with just these workflows:
+
+```typescript
+beforeEach(async () => {
+  queue = new InMemoryWorkflowQueue();
+  moduleRef = await Test.createTestingModule({
+    imports: [
+      DozerModule.forRoot({ driver: queue }),
+      DozerModule.forFeature(
+        [
+          BinaryInputWorkflow,
+          TypedArrayResultWorkflow,
+          NonSerializableStepResultWorkflow,
+          DatePayloadWorkflow,
+          DateStepResultWorkflow,
+        ],
+        [BinaryStats],
+      ),
+    ],
+  }).compile();
+  await moduleRef.init();
+  engine = moduleRef.get(DozerEngine);
+});
+```
+
+**Imports needed:**
+
+```typescript
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  DOZER_JOB_INPUT_KEY,
+  DozerEngine,
+  DozerModule,
+  InMemoryWorkflowQueue,
+  SerializationError,
+  Step,
+  Workflow,
+  WORKFLOW_STATUS,
+} from './index';
+```
+
+Wrap in `describe('DozerEngine serialization', () => { ... })`.
+
+- [ ] **Step 10: Run serialization spec**
+
+```bash
+npx jest --testPathPattern=dozer-engine-serialization --verbose
+```
+
+Expected: 6 tests pass.
+
+---
+
+- [ ] **Step 11: Create `src/dozer-engine-retries.spec.ts`**
+
+Tests for step retries, `NonRetryableError`, workflow-level retry, module/workflow defaults, timeout, and job options.
+
+**Tests to include:**
+- `'retries unstable steps by retry policy'`
+- `'does not retry step when NonRetryableError is thrown'`
+- `'supports timeout handling with compensating actions in workflow run'`
+- `'automatically resumes workflow by workflowRetry settings'`
+- `'applies workflow retry backoff strategy delays'`
+- `'applies workflow-level default retry options for steps without own retry'`
+- `'restarts whole workflow on step retry using a fresh workflow instance'`
+- `'applies module-level default retry options for steps'`
+- `'lets step-level retry options override module defaults'`
+- `'applies module-level default workflowRetry options'`
+- `'lets workflow-level workflowRetry options override module defaults'`
+- `'merges global and workflow job options when creating jobs'`
+
+The first 7 tests use the shared `moduleRef`/`engine`. The last 5 tests use `localModule`.
+
+**Fixture classes to copy:**
+- `FailOnceService` — import from `./test/workflow-test-utils` (do not duplicate)
+- `TimeoutCompensationStats` (lines 82-87)
+- `WorkflowAutoResumeStats` (lines 88-93)
+- `RetryWorkflow` (lines 321-338)
+- `NonRetryableStepWorkflow` (the `@Workflow({ name: 'non-retryable-step-workflow' })` class at lines ~876-895)
+- `TimeoutCompensationWorkflow` (lines ~896-940)
+- `WorkflowAutoResumeWorkflow` (lines ~941-986)
+- `WorkflowRetryLinearWorkflow` (lines ~987-1001)
+- `WorkflowDefaultRetryWorkflow` (lines ~664-688, the `@Workflow({ name: 'workflow-default-retry-workflow' })`)
+- `GlobalDefaultRetryWorkflow` (lines ~689-706)
+- `GlobalDefaultRetryOverrideWorkflow` (lines ~707-729)
+- `RetryRestartsWholeFlowWorkflow` (lines ~730-755)
+- `JobOptionsWorkflow` (lines ~756-768)
+- `GlobalWorkflowRetryWorkflow` (lines ~839-851)
+- `GlobalWorkflowRetryOverrideWorkflow` (lines ~852-875)
+
+**Module setup** — `beforeEach` with just the retry-related workflows (for the first 7 tests):
+
+```typescript
+beforeEach(async () => {
+  queue = new InMemoryWorkflowQueue();
+  moduleRef = await Test.createTestingModule({
+    imports: [
+      DozerModule.forRoot({ driver: queue }),
+      DozerModule.forFeature(
+        [
+          RetryWorkflow,
+          NonRetryableStepWorkflow,
+          TimeoutCompensationWorkflow,
+          WorkflowAutoResumeWorkflow,
+          WorkflowRetryLinearWorkflow,
+          WorkflowDefaultRetryWorkflow,
+          RetryRestartsWholeFlowWorkflow,
+        ],
+        [FailOnceService, TimeoutCompensationStats, WorkflowAutoResumeStats],
+      ),
+    ],
+  }).compile();
+  await moduleRef.init();
+  engine = moduleRef.get(DozerEngine);
+});
+```
+
+**Imports needed:**
+
+```typescript
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  DOZER_JOB_STATE_KEY,
+  DozerEngine,
+  DozerModule,
+  InMemoryWorkflowQueue,
+  NonRetryableError,
+  Step,
+  TimeoutError,
+  Workflow,
+  WORKFLOW_STATUS,
+  WorkflowJobOptions,
+} from './index';
+import { FailOnceService, sleep } from './test/workflow-test-utils';
+```
+
+Wrap in `describe('DozerEngine retries', () => { ... })`.
+
+- [ ] **Step 12: Run retries spec**
+
+```bash
+npx jest --testPathPattern=dozer-engine-retries --verbose
+```
+
+Expected: 12 tests pass.
+
+---
+
+- [ ] **Step 13: Create `src/dozer-module.spec.ts`**
+
+Copy the entire `describe('DozerModule registration constraints', () => { ... })` block from `src/dozer-engine.spec.ts` (lines ~2250-2268) along with its fixtures:
+
+- `DuplicateNameWorkflowA` and `DuplicateNameWorkflowB` classes (in the fixture section — search for `duplicate-workflow-name`)
+
+**Imports needed:**
+
+```typescript
+import { Test } from '@nestjs/testing';
+import { DozerModule, InMemoryWorkflowQueue, Workflow } from './index';
+```
+
+Keep the same `describe` name: `'DozerModule registration constraints'`.
+
+- [ ] **Step 14: Run module spec**
+
+```bash
+npx jest --testPathPattern=dozer-module --verbose
+```
+
+Expected: 1 test passes.
+
+---
+
+- [ ] **Step 15: Create `src/dozer-client.spec.ts`**
+
+Copy the entire `describe('DozerClient module', () => { ... })` block from `src/dozer-engine.spec.ts` (lines ~2270-2472) along with any workflow fixtures it uses.
+
+Read the test bodies to identify which workflow fixture classes they reference (look for `DozerModule.forFeature([...])` calls inside the test bodies). Copy only the fixtures actually referenced. The `ResultQueueWorkflow` fixture (line ~778) is likely needed — check and include it if so.
+
+**Imports needed** — determine from the test bodies. Will include at minimum:
+
+```typescript
+import { Test } from '@nestjs/testing';
+import {
+  createWorkflowResultProcessor,
+  decodeWorkflowResultJob,
+  DozerClient,
+  DozerModule,
+  InMemoryWorkflowQueue,
+  Step,
+  toWorkflowResultQueueJobId,
+  Workflow,
+  WORKFLOW_STATUS,
+} from './index';
+import { CapturingResultQueue } from './test/workflow-test-utils';
+```
+
+Keep the same `describe` name: `'DozerClient module'`.
+
+- [ ] **Step 16: Run client spec**
+
+```bash
+npx jest --testPathPattern=dozer-client --verbose
+```
+
+Expected: 5 tests pass.
+
+---
+
+- [ ] **Step 17: Reduce `src/dozer-engine.spec.ts` to core mechanics**
+
+After all other spec files are working, remove from `src/dozer-engine.spec.ts`:
+1. All fixture classes that have been moved to other files or `workflow-test-utils.ts`
+2. All `it()` test cases that were moved to other files
+3. The `DozerModule registration constraints` describe block (moved to `dozer-module.spec.ts`)
+4. The `DozerClient module` describe block (moved to `dozer-client.spec.ts`)
+5. The local `sleep` definition (now imported from `./test/workflow-test-utils`)
+6. The `CapturingResultQueue`, `FailOnceResultQueue`, `DuplicateJobIdResultQueue` class definitions (moved to `workflow-test-utils.ts`)
+7. The `FailOnceService` class definition (moved to `workflow-test-utils.ts`)
+
+**Tests to keep in `dozer-engine.spec.ts`:**
+- `'restores workflow state and replays completed steps only once'`
+- `'returns workflow job info with status and result by jobId'`
+- `'cancels pending workflow job and prevents running it'`
+- `'marks state as failed when workflow is not registered'`
+- `'supports steps that return void and undefined'`
+- `'handles repeated calls of the same step method as separate step keys'`
+- `'supports workflows with different input data types'`
+
+**Fixture classes to keep** (those used by the above tests):
+- `RecoveryStats`, `BranchService` (injectable services for RecoveryWorkflow)
+- `RecoveryWorkflow`, `RetryWorkflow`, `TypedStepWorkflow`, `RepeatedStepWorkflow`, `TypedInputWorkflow`
+
+**Update the `beforeEach` module** to register only these 5 workflows and 3 providers:
+
+```typescript
+DozerModule.forFeature(
+  [RecoveryWorkflow, RetryWorkflow, TypedStepWorkflow, RepeatedStepWorkflow, TypedInputWorkflow],
+  [RecoveryStats, BranchService, FailOnceService],
+)
+```
+
+**Add import** of `FailOnceService` from `./test/workflow-test-utils` and `sleep` from the same.
+
+Wrap in `describe('DozerEngine core', () => { ... })` (rename the describe to reflect reduced scope).
+
+- [ ] **Step 18: Run the reduced core spec**
+
+```bash
+npx jest --testPathPattern=src/dozer-engine.spec --verbose
+```
+
+Expected: 7 tests pass.
+
+---
+
+- [ ] **Step 19: Run full test suite**
+
+```bash
+npm test
+```
+
+Expected: all tests pass — same count as before the split. Verify with:
+
+```bash
+npm test 2>&1 | tail -5
+```
+
+- [ ] **Step 20: Verify TypeScript**
+
+```bash
+npx tsc --noEmit
+```
+
+Expected: no errors.
+
+- [ ] **Step 21: Commit**
+
+```bash
+git add src/
+git commit -m "refactor: split dozer-engine.spec.ts into focused spec files"
+```
