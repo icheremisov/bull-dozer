@@ -1003,6 +1003,42 @@ class DuplicateNameWorkflowB {
   }
 }
 
+@Workflow({
+  name: 'failure-publish-workflow',
+  resultQueue: {
+    jobName: 'workflow-result',
+    publishOnFailure: true,
+  },
+})
+class FailurePublishWorkflow {
+  @Step({ name: 'fail' })
+  fail(): Promise<void> {
+    throw new Error('failure-publish-error');
+  }
+
+  async run(input: { value: number }): Promise<void> {
+    await this.fail();
+  }
+}
+
+@Workflow({
+  name: 'failure-no-publish-workflow',
+  resultQueue: {
+    jobName: 'workflow-result',
+    // publishOnFailure not set — defaults to false
+  },
+})
+class FailureNoPublishWorkflow {
+  @Step({ name: 'fail' })
+  fail(): Promise<void> {
+    throw new Error('no-publish-failure-error');
+  }
+
+  async run(): Promise<void> {
+    await this.fail();
+  }
+}
+
 describe('DozerEngine (library unit tests)', () => {
   let moduleRef: TestingModule;
   let queue: InMemoryWorkflowQueue;
@@ -2140,6 +2176,71 @@ describe('DozerEngine (library unit tests)', () => {
       await expect(localEngine.run(jobId)).rejects.toThrow('global-nr-error');
 
       expect(callbackCalls).toEqual(['global-nr-error']);
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('publishes failure payload to result queue when publishOnFailure is true', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const resultQueue = new CapturingResultQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue, resultQueue }),
+        DozerModule.forFeature([FailurePublishWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start('failure-publish-workflow', {
+        value: 7,
+      });
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'failure-publish-error',
+      );
+
+      expect(resultQueue.added).toHaveLength(1);
+      expect(resultQueue.added[0]).toMatchObject({
+        name: 'workflow-result',
+        data: {
+          jobId,
+          workflowName: 'failure-publish-workflow',
+          status: 'failed',
+          result: null,
+          error: 'failure-publish-error',
+        },
+      });
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('does not publish to result queue on failure when publishOnFailure is false', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const resultQueue = new CapturingResultQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue, resultQueue }),
+        DozerModule.forFeature([FailureNoPublishWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start(
+        'failure-no-publish-workflow',
+        {},
+      );
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'no-publish-failure-error',
+      );
+
+      expect(resultQueue.added).toHaveLength(0);
     } finally {
       await localModule.close();
     }
