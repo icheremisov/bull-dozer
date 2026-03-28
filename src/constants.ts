@@ -1,5 +1,6 @@
 export const WORKFLOW_OPTIONS_METADATA = 'dozer:workflow:options';
 export const STEP_OPTIONS_METADATA = 'dozer:step:options';
+export const NOSTEP_METADATA = 'dozer:nostep';
 
 export const DOZER_JOB_INPUT_KEY = 'i' as const;
 export const DOZER_JOB_STATE_KEY = 'd' as const;
