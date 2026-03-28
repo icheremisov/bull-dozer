@@ -299,13 +299,30 @@ export class WorkflowStateStore<TInput = unknown> {
     const pending = this.getPendingSignal(signalName);
     if (!pending) return false;
 
-    await this.saveStepResult(pending.stepKey, payload);
+    // Save signal result to step cache
+    this.state.c[pending.stepKey] = await serializeForStorage(
+      payload,
+      `step result "${pending.stepKey}"`,
+    );
+    if (this.state.u) {
+      delete this.state.u[pending.stepKey];
+    }
+    if (this.state.a) {
+      delete this.state.a[pending.stepKey];
+      if (Object.keys(this.state.a).length === 0) {
+        this.state.a = undefined;
+      }
+    }
+    this.removeDescendantStepCache(pending.stepKey);
+
+    // Clear pending signal in same operation
     if (this.state.ps) {
       delete this.state.ps[signalName];
       if (Object.keys(this.state.ps).length === 0) {
         this.state.ps = undefined;
       }
     }
+
     await this.flush();
     return true;
   }
