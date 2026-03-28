@@ -11,7 +11,7 @@ import {
   WorkflowCancelledError,
   WORKFLOW_STATUS,
 } from './index';
-import { FailOnceService, sleep } from './test/workflow-test-utils';
+import { FailOnceService, RetryWorkflow, sleep } from './test/workflow-test-utils';
 
 type RecoveryPayload = Record<string, unknown>;
 
@@ -20,11 +20,6 @@ class RecoveryStats {
   validate = 0;
   process = 0;
   store = 0;
-}
-
-@Injectable()
-class BranchService {
-  branch: 'left' | 'right' = 'left';
 }
 
 @Workflow({ name: 'recovery-workflow' })
@@ -60,24 +55,6 @@ class RecoveryWorkflow {
     const processed = await this.process(validated);
     await this.store(processed);
     return { success: true, payload: processed };
-  }
-}
-
-@Workflow({ name: 'retry-workflow' })
-class RetryWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
-
-  @Step({ name: 'unstable', retry: { attempts: 3 } })
-  unstable(value: number): Promise<number> {
-    if (this.failOnce.shouldFail('retry-workflow', 2)) {
-      throw new Error('temporary-error');
-    }
-
-    return Promise.resolve(value + 1);
-  }
-
-  run(input: { value: number }): Promise<number> {
-    return this.unstable(input.value);
   }
 }
 
@@ -168,7 +145,7 @@ describe('DozerEngine core', () => {
             RepeatedStepWorkflow,
             TypedInputWorkflow,
           ],
-          [RecoveryStats, BranchService, FailOnceService],
+          [RecoveryStats, FailOnceService],
         ),
       ],
     }).compile();

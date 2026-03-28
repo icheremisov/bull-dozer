@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   BullMQQueueLike,
+  Step,
+  Workflow,
   WorkflowJobOptions,
   WorkflowResultQueueJobData,
 } from '../index';
@@ -25,6 +27,24 @@ export class FailOnceService {
 
   reset(): void {
     this.map.clear();
+  }
+}
+
+@Workflow({ name: 'retry-workflow' })
+export class RetryWorkflow {
+  constructor(private readonly failOnce: FailOnceService) {}
+
+  @Step({ name: 'unstable', retry: { attempts: 3 } })
+  unstable(value: number): Promise<number> {
+    if (this.failOnce.shouldFail('retry-workflow', 2)) {
+      throw new Error('temporary-error');
+    }
+
+    return Promise.resolve(value + 1);
+  }
+
+  run(input: { value: number }): Promise<number> {
+    return this.unstable(input.value);
   }
 }
 

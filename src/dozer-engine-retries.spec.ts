@@ -12,7 +12,7 @@ import {
   WORKFLOW_STATUS,
   WorkflowJobOptions,
 } from './index';
-import { FailOnceService, sleep } from './test/workflow-test-utils';
+import { FailOnceService, RetryWorkflow, sleep } from './test/workflow-test-utils';
 
 @Injectable()
 class TimeoutCompensationStats {
@@ -24,24 +24,6 @@ class TimeoutCompensationStats {
 class WorkflowAutoResumeStats {
   prepare = 0;
   unstable = 0;
-}
-
-@Workflow({ name: 'retry-workflow' })
-class RetryWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
-
-  @Step({ name: 'unstable', retry: { attempts: 3 } })
-  unstable(value: number): Promise<number> {
-    if (this.failOnce.shouldFail('retry-workflow', 2)) {
-      throw new Error('temporary-error');
-    }
-
-    return Promise.resolve(value + 1);
-  }
-
-  run(input: { value: number }): Promise<number> {
-    return this.unstable(input.value);
-  }
 }
 
 @Workflow({ name: 'non-retryable-step-workflow' })
