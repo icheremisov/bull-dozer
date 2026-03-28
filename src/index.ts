@@ -26,6 +26,7 @@ export type {
 } from './decorators/workflow.decorator';
 export { Step } from './decorators/step.decorator';
 export type { RetryOptions, StepOptions } from './decorators/step.decorator';
+export type { WorkflowWithFailureHandler } from './workflow/workflow-with-failure-handler';
 
 export {
   DOZER_JOB_INPUT_KEY,
