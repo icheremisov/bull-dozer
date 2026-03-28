@@ -2049,6 +2049,101 @@ describe('DozerEngine (library unit tests)', () => {
       await localModule.close();
     }
   });
+
+  it('calls global onWorkflowFailed callback on terminal failure', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const callbackCalls: Array<{
+      jobId: string;
+      workflowName: string;
+      error: Error;
+    }> = [];
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          onWorkflowFailed: (jobId, workflowName, error) => {
+            callbackCalls.push({ jobId, workflowName, error });
+          },
+        }),
+        DozerModule.forFeature([GlobalCallbackWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start('global-callback-workflow', {});
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'global-callback-error',
+      );
+
+      expect(callbackCalls).toHaveLength(1);
+      expect(callbackCalls[0].jobId).toBe(jobId);
+      expect(callbackCalls[0].workflowName).toBe('global-callback-workflow');
+      expect(callbackCalls[0].error.message).toBe('global-callback-error');
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('suppresses errors thrown inside global onWorkflowFailed callback', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          onWorkflowFailed: () => {
+            throw new Error('callback-threw');
+          },
+        }),
+        DozerModule.forFeature([GlobalCallbackWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start('global-callback-workflow', {});
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'global-callback-error',
+      );
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('calls global onWorkflowFailed when NonRetryableError is thrown', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const callbackCalls: string[] = [];
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          onWorkflowFailed: (_jobId, _name, error) => {
+            callbackCalls.push(error.message);
+          },
+        }),
+        DozerModule.forFeature([GlobalCallbackNonRetryableWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start(
+        'global-callback-non-retryable-workflow',
+        {},
+      );
+
+      await expect(localEngine.run(jobId)).rejects.toThrow('global-nr-error');
+
+      expect(callbackCalls).toEqual(['global-nr-error']);
+    } finally {
+      await localModule.close();
+    }
+  });
 });
 
 describe('DozerModule registration constraints', () => {
@@ -2272,101 +2367,6 @@ describe('DozerClient module', () => {
       );
     } finally {
       await moduleRef.close();
-    }
-  });
-
-  it('calls global onWorkflowFailed callback on terminal failure', async () => {
-    const localQueue = new InMemoryWorkflowQueue();
-    const callbackCalls: Array<{
-      jobId: string;
-      workflowName: string;
-      error: Error;
-    }> = [];
-    const localModule = await Test.createTestingModule({
-      imports: [
-        DozerModule.forRoot({
-          driver: localQueue,
-          onWorkflowFailed: (jobId, workflowName, error) => {
-            callbackCalls.push({ jobId, workflowName, error });
-          },
-        }),
-        DozerModule.forFeature([GlobalCallbackWorkflow]),
-      ],
-    }).compile();
-    await localModule.init();
-
-    try {
-      const localEngine = localModule.get(DozerEngine);
-      const jobId = await localEngine.start('global-callback-workflow', {});
-
-      await expect(localEngine.run(jobId)).rejects.toThrow(
-        'global-callback-error',
-      );
-
-      expect(callbackCalls).toHaveLength(1);
-      expect(callbackCalls[0].jobId).toBe(jobId);
-      expect(callbackCalls[0].workflowName).toBe('global-callback-workflow');
-      expect(callbackCalls[0].error.message).toBe('global-callback-error');
-    } finally {
-      await localModule.close();
-    }
-  });
-
-  it('suppresses errors thrown inside global onWorkflowFailed callback', async () => {
-    const localQueue = new InMemoryWorkflowQueue();
-    const localModule = await Test.createTestingModule({
-      imports: [
-        DozerModule.forRoot({
-          driver: localQueue,
-          onWorkflowFailed: () => {
-            throw new Error('callback-threw');
-          },
-        }),
-        DozerModule.forFeature([GlobalCallbackWorkflow]),
-      ],
-    }).compile();
-    await localModule.init();
-
-    try {
-      const localEngine = localModule.get(DozerEngine);
-      const jobId = await localEngine.start('global-callback-workflow', {});
-
-      await expect(localEngine.run(jobId)).rejects.toThrow(
-        'global-callback-error',
-      );
-    } finally {
-      await localModule.close();
-    }
-  });
-
-  it('calls global onWorkflowFailed when NonRetryableError is thrown', async () => {
-    const localQueue = new InMemoryWorkflowQueue();
-    const callbackCalls: string[] = [];
-    const localModule = await Test.createTestingModule({
-      imports: [
-        DozerModule.forRoot({
-          driver: localQueue,
-          onWorkflowFailed: (_jobId, _name, error) => {
-            callbackCalls.push(error.message);
-          },
-        }),
-        DozerModule.forFeature([GlobalCallbackNonRetryableWorkflow]),
-      ],
-    }).compile();
-    await localModule.init();
-
-    try {
-      const localEngine = localModule.get(DozerEngine);
-      const jobId = await localEngine.start(
-        'global-callback-non-retryable-workflow',
-        {},
-      );
-
-      await expect(localEngine.run(jobId)).rejects.toThrow('global-nr-error');
-
-      expect(callbackCalls).toEqual(['global-nr-error']);
-    } finally {
-      await localModule.close();
     }
   });
 });
