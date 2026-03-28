@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import {
+  DozerClient,
   DozerEngine,
   DOZER_JOB_STATE_KEY,
   WorkflowJobData,
@@ -21,6 +22,7 @@ const toResultQueueJobId = (workflowJobId: string): string => {
 export class AppController {
   constructor(
     private readonly engine: DozerEngine,
+    private readonly dozerClient: DozerClient,
     private readonly branchSelector: BranchSelectorService,
     @Inject(EXAMPLE_WORKFLOW_QUEUE)
     private readonly queue: Queue<WorkflowJobData<unknown>>,
@@ -85,6 +87,16 @@ export class AppController {
       data: job.data,
       compactState: job.data[DOZER_JOB_STATE_KEY],
     };
+  }
+
+  @Post(':jobId/signal/:name')
+  async sendSignal(
+    @Param('jobId') jobId: string,
+    @Param('name') name: string,
+    @Body() body: Record<string, unknown>,
+  ): Promise<{ delivered: boolean }> {
+    const delivered = await this.dozerClient.sendSignal(jobId, name, body);
+    return { delivered };
   }
 
   @Post('branch/:key/:branch')

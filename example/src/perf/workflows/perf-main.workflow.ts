@@ -1,4 +1,4 @@
-import { DozerEngine, Step, Workflow } from 'dozer';
+import { DozerEngine, DozerWorkflow, Step, Workflow } from 'dozer';
 import { WorkflowJoinService } from '../../support/workflow-join.service';
 import { PerfFailureService } from '../services/perf-failure.service';
 import { PerfChildInput } from './perf-child.workflow';
@@ -26,12 +26,14 @@ export interface PerfMainInput {
     },
   },
 })
-export class PerfMainWorkflow {
+export class PerfMainWorkflow extends DozerWorkflow<PerfMainInput> {
   constructor(
     private readonly engine: DozerEngine,
     private readonly join: WorkflowJoinService,
     private readonly failure: PerfFailureService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'step-work' })
   async stepWork(input: {

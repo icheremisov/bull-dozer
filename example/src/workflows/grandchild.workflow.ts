@@ -1,4 +1,4 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 const sleep = async (ms: number): Promise<void> => {
@@ -6,8 +6,10 @@ const sleep = async (ms: number): Promise<void> => {
 };
 
 @Workflow({ name: 'grandchild-workflow' })
-export class GrandchildWorkflow {
-  constructor(private readonly failureMemory: FailureMemoryService) {}
+export class GrandchildWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failureMemory: FailureMemoryService) {
+    super();
+  }
 
   @Step({ name: 'grandchild-work' })
   async work(input: { id: string; value: number }): Promise<number> {

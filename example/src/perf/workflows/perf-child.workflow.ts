@@ -1,4 +1,4 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { PerfFailureService } from '../services/perf-failure.service';
 
 const sleep = async (ms: number): Promise<void> => {
@@ -22,8 +22,10 @@ export interface PerfChildInput {
     },
   },
 })
-export class PerfChildWorkflow {
-  constructor(private readonly failure: PerfFailureService) {}
+export class PerfChildWorkflow extends DozerWorkflow<PerfChildInput> {
+  constructor(private readonly failure: PerfFailureService) {
+    super();
+  }
 
   @Step({ name: 'child-process' })
   async process(input: PerfChildInput): Promise<{ payloadBytes: number }> {

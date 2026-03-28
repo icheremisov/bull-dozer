@@ -1,9 +1,12 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, NoStep, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
-class PlainOverrideBaseWorkflow {
-  constructor(protected readonly failureMemory: FailureMemoryService) {}
+abstract class PlainOverrideBaseWorkflow extends DozerWorkflow<unknown> {
+  constructor(protected readonly failureMemory: FailureMemoryService) {
+    super();
+  }
 
+  @NoStep()
   dispatch(input: { id: string; value: number }): number {
     return this.target(input);
   }
@@ -25,6 +28,7 @@ export class InheritancePlainOverrideWorkflow extends PlainOverrideBaseWorkflow 
   }
 
   // intentionally no @Step
+  @NoStep()
   target(input: { id: string; value: number }): number {
     this.failureMemory.markAndShouldFail(
       `inheritance-plain:target-derived:${input.id}`,

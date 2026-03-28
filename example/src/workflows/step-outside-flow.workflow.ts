@@ -1,10 +1,11 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 @Workflow({ name: 'step-outside-flow' })
-export class StepOutsideFlowWorkflow {
+export class StepOutsideFlowWorkflow extends DozerWorkflow<never> {
   private readonly constructorValue: number;
 
   constructor() {
+    super();
     void this.seedFromConstructor();
     this.constructorValue = 5;
   }

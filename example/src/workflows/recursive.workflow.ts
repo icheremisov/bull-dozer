@@ -1,7 +1,7 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 @Workflow({ name: 'recursive' })
-export class RecursiveWorkflow {
+export class RecursiveWorkflow extends DozerWorkflow<{ value: number; depth: number }> {
   @Step({ name: 'node' })
   async node(input: { value: number; depth: number }): Promise<number> {
     if (input.depth <= 0) {

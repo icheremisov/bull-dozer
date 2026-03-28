@@ -1,7 +1,7 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 @Workflow({ name: 'sync-async' })
-export class SyncAsyncWorkflow {
+export class SyncAsyncWorkflow extends DozerWorkflow<{ value: number }> {
   @Step({ name: 'sync-step' })
   syncStep(value: number): number {
     return value + 1;

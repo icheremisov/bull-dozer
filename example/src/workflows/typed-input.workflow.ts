@@ -1,4 +1,4 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 export type TypedInput =
   | { kind: 'number'; value: number }
@@ -8,7 +8,7 @@ export type TypedInput =
   | { kind: 'null'; value: null };
 
 @Workflow({ name: 'typed-input' })
-export class TypedInputWorkflow {
+export class TypedInputWorkflow extends DozerWorkflow<TypedInput> {
   @Step({ name: 'normalize' })
   normalize(input: TypedInput): Promise<string> {
     switch (input.kind) {

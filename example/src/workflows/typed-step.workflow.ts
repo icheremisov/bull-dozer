@@ -1,7 +1,7 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 @Workflow({ name: 'typed-step' })
-export class TypedStepWorkflow {
+export class TypedStepWorkflow extends DozerWorkflow<{ value: number }> {
   @Step({ name: 'void-step' })
   touch(): Promise<void> {
     return Promise.resolve();

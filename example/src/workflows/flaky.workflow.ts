@@ -1,9 +1,11 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'flaky' })
-export class FlakyWorkflow {
-  constructor(private readonly failureMemory: FailureMemoryService) {}
+export class FlakyWorkflow extends DozerWorkflow<{ key: string; threshold: number; failTimes?: number }> {
+  constructor(private readonly failureMemory: FailureMemoryService) {
+    super();
+  }
 
   @Step({ name: 'unstable', retry: { attempts: 5, backoffMs: 10 } })
   unstable(input: {

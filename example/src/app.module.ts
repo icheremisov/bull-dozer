@@ -46,6 +46,8 @@ import { ThisStateWorkflow } from './workflows/this-state.workflow';
 import { TypedInputWorkflow } from './workflows/typed-input.workflow';
 import { TypedStepWorkflow } from './workflows/typed-step.workflow';
 import { VersionedLogicWorkflow } from './workflows/versioned-logic.workflow';
+import { SleepWorkflow } from './workflows/sleep.workflow';
+import { SignalWorkflow } from './workflows/signal.workflow';
 
 @Module({
   imports: [
@@ -97,6 +99,8 @@ import { VersionedLogicWorkflow } from './workflows/versioned-logic.workflow';
         StepOutsideFlowWorkflow,
         OnFailedWorkflow,
         FailurePublishWorkflow,
+        SleepWorkflow,
+        SignalWorkflow,
       ],
       [
         FailureMemoryService,

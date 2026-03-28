@@ -1,4 +1,4 @@
-import { DozerEngine, Step, Workflow } from 'dozer';
+import { DozerEngine, DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 import { WorkflowJoinService } from '../support/workflow-join.service';
 
@@ -8,12 +8,14 @@ interface ChildResult {
 }
 
 @Workflow({ name: 'parent-workflow' })
-export class ParentWorkflow {
+export class ParentWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   constructor(
     private readonly engine: DozerEngine,
     private readonly join: WorkflowJoinService,
     private readonly failureMemory: FailureMemoryService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'invoke-child' })
   async invokeChild(input: {

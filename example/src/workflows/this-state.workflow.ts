@@ -1,4 +1,4 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 interface RuntimeState {
@@ -6,10 +6,12 @@ interface RuntimeState {
 }
 
 @Workflow({ name: 'this-state' })
-export class ThisStateWorkflow {
+export class ThisStateWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   current?: RuntimeState;
 
-  constructor(private readonly failureMemory: FailureMemoryService) {}
+  constructor(private readonly failureMemory: FailureMemoryService) {
+    super();
+  }
 
   @Step({ name: 'hydrate' })
   hydrate(input: { id: string; value: number }): Promise<RuntimeState> {

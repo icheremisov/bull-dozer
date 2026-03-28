@@ -1,15 +1,17 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 import { ScenarioControlsService } from '../support/scenario-controls.service';
 
 type SourceKind = 'timer' | 'random' | 'external';
 
 @Workflow({ name: 'run-source-nondeterministic' })
-export class RunSourceNondeterministicWorkflow {
+export class RunSourceNondeterministicWorkflow extends DozerWorkflow<{ id: string; source: SourceKind; value: number }> {
   constructor(
     private readonly controls: ScenarioControlsService,
     private readonly failureMemory: FailureMemoryService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'timer-even' })
   timerEven(value: number): Promise<number> {

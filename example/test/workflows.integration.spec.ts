@@ -2,6 +2,8 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
 import {
+  DozerClient,
+  DozerEngine,
   DOZER_JOB_STATE_KEY,
   WORKFLOW_STATUS,
   WorkflowJobData,
@@ -58,6 +60,23 @@ const waitForTerminalStatus = async (
   throw new Error(
     `Timed out waiting for job ${jobId} to reach terminal status. queueState=${String(lastQueueState)} compactState=${JSON.stringify(lastCompactState)} failedReason=${failedReason ?? 'n/a'}`,
   );
+};
+
+const waitForDelayed = async (
+  queue: Queue<WorkflowJobData<unknown>>,
+  jobId: string,
+  timeoutMs = 5000,
+): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const job = await queue.getJob(jobId);
+    if (job) {
+      const state = await job.getState();
+      if (state === 'delayed') return;
+    }
+    await sleep(100);
+  }
+  throw new Error(`Timed out waiting for job ${jobId} to reach delayed state`);
 };
 
 jest.setTimeout(60000);
@@ -505,6 +524,56 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
       .expect(200);
 
     expect(String(response.text)).toContain('Bull Dashboard');
+  });
+
+  integrationTest('sleep workflow: completes after sleep period elapses', async () => {
+    const engine = moduleRef.get(DozerEngine);
+    const jobId = await engine.start('sleep-workflow', {
+      id: `sleep-test-${Date.now()}`,
+      durationMs: 200,
+      value: 5,
+    });
+
+    const data = await waitForTerminalStatus(queue, jobId, 15000);
+    expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({ value: 6 });
+  });
+
+  integrationTest('signal workflow: delivers signal and workflow completes with payload', async () => {
+    const engine = moduleRef.get(DozerEngine);
+    const dozerClient = moduleRef.get(DozerClient);
+    const id = `signal-test-${Date.now()}`;
+
+    const jobId = await engine.start('signal-workflow', {
+      id,
+      timeoutMs: 30_000,
+    });
+
+    await waitForDelayed(queue, jobId, 10_000);
+
+    const delivered = await dozerClient.sendSignal(jobId, 'approval', { userId: 'user-1' });
+    expect(delivered).toBe(true);
+
+    const data = await waitForTerminalStatus(queue, jobId, 15_000);
+    expect(data[DOZER_JOB_STATE_KEY]?.r).toMatchObject({
+      approved: true,
+      payload: { userId: 'user-1' },
+    });
+  });
+
+  integrationTest('signal workflow: returns null payload on timeout', async () => {
+    const engine = moduleRef.get(DozerEngine);
+    const id = `signal-timeout-test-${Date.now()}`;
+
+    const jobId = await engine.start('signal-workflow', {
+      id,
+      timeoutMs: 500,
+    });
+
+    const data = await waitForTerminalStatus(queue, jobId, 15_000);
+    expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({
+      approved: false,
+      payload: null,
+    });
   });
 });
 const toResultQueueJobId = (workflowJobId: string): string => {

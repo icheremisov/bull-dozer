@@ -1,8 +1,10 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
-class InheritanceBase {
-  constructor(protected readonly failureMemory: FailureMemoryService) {}
+abstract class InheritanceBase extends DozerWorkflow<unknown> {
+  constructor(protected readonly failureMemory: FailureMemoryService) {
+    super();
+  }
 
   @Step({ name: 'base-step' })
   baseStep(input: { id: string; value: number }): Promise<number> {

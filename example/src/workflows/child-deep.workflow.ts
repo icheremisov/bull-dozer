@@ -1,4 +1,4 @@
-import { DozerEngine, Step, Workflow } from 'dozer';
+import { DozerEngine, DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 import { WorkflowJoinService } from '../support/workflow-join.service';
 
@@ -7,12 +7,14 @@ const sleep = async (ms: number): Promise<void> => {
 };
 
 @Workflow({ name: 'child-deep-workflow' })
-export class ChildDeepWorkflow {
+export class ChildDeepWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   constructor(
     private readonly engine: DozerEngine,
     private readonly join: WorkflowJoinService,
     private readonly failureMemory: FailureMemoryService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'invoke-grandchild' })
   async invokeGrandchild(input: {

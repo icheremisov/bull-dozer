@@ -1,9 +1,11 @@
-import { Workflow } from 'dozer';
+import { DozerWorkflow, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'no-step' })
-export class NoStepWorkflow {
-  constructor(private readonly failureMemory: FailureMemoryService) {}
+export class NoStepWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failureMemory: FailureMemoryService) {
+    super();
+  }
 
   run(input: { id: string; value: number }): Promise<{ value: number }> {
     this.failureMemory.markAndShouldFail(`no-step:run:${input.id}`, 0);

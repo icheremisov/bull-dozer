@@ -1,7 +1,7 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 @Workflow({ name: 'repeated-step' })
-export class RepeatedStepWorkflow {
+export class RepeatedStepWorkflow extends DozerWorkflow<{ value: number }> {
   @Step({ name: 'increment' })
   increment(value: number): Promise<number> {
     return Promise.resolve(value + 1);

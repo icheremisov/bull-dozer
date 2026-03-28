@@ -1,13 +1,15 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { BranchSelectorService } from '../support/branch-selector.service';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'non-deterministic' })
-export class NonDeterministicWorkflow {
+export class NonDeterministicWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   constructor(
     private readonly selector: BranchSelectorService,
     private readonly failureMemory: FailureMemoryService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'left-branch' })
   left(value: number): Promise<number> {

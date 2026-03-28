@@ -1,4 +1,4 @@
-import { Workflow } from 'dozer';
+import { DozerWorkflow, Workflow } from 'dozer';
 
 @Workflow({
   name: 'result-queue',
@@ -9,7 +9,7 @@ import { Workflow } from 'dozer';
     },
   },
 })
-export class ResultQueueWorkflow {
+export class ResultQueueWorkflow extends DozerWorkflow<{ value: number }> {
   run(input: { value: number }): Promise<{ value: number; ok: true }> {
     return Promise.resolve({
       ok: true,

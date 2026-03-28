@@ -1,13 +1,15 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 import { ScenarioControlsService } from '../support/scenario-controls.service';
 
 @Workflow({ name: 'versioned-logic' })
-export class VersionedLogicWorkflow {
+export class VersionedLogicWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   constructor(
     private readonly controls: ScenarioControlsService,
     private readonly failureMemory: FailureMemoryService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'logic-v1' })
   logicV1(value: number): Promise<number> {

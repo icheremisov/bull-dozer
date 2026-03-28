@@ -1,11 +1,14 @@
-import { NonRetryableError, Step, Workflow, WorkflowWithFailureHandler } from 'dozer';
+import { DozerWorkflow, NonRetryableError, NoStep, Step, Workflow, WorkflowWithFailureHandler } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'on-failed' })
 export class OnFailedWorkflow
+  extends DozerWorkflow<{ id: string }>
   implements WorkflowWithFailureHandler<{ id: string }>
 {
-  constructor(private readonly failureMemory: FailureMemoryService) {}
+  constructor(private readonly failureMemory: FailureMemoryService) {
+    super();
+  }
 
   @Step({ name: 'fail' })
   fail(id: string): Promise<void> {
@@ -16,6 +19,7 @@ export class OnFailedWorkflow
     await this.fail(input.id);
   }
 
+  @NoStep()
   async onFailed(
     _error: Error,
     input: { id: string },

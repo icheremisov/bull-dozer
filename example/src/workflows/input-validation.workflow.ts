@@ -1,7 +1,7 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 @Workflow({ name: 'input-validation' })
-export class InputValidationWorkflow {
+export class InputValidationWorkflow extends DozerWorkflow<{ orderId?: unknown }> {
   @Step({ name: 'validate' })
   validate(input: { orderId?: unknown }): Promise<{ orderId: number }> {
     const raw = input.orderId;

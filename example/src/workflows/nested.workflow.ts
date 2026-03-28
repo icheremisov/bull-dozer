@@ -1,7 +1,7 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 @Workflow({ name: 'nested' })
-export class NestedWorkflow {
+export class NestedWorkflow extends DozerWorkflow<{ value: number }> {
   @Step({ name: 'outer' })
   async outer(input: number): Promise<number> {
     const a = await this.innerA(input);

@@ -1,9 +1,9 @@
-import { Step, Workflow } from 'dozer';
+import { DozerWorkflow, Step, Workflow } from 'dozer';
 
 type Payload = Record<string, unknown>;
 
 @Workflow({ name: 'simple' })
-export class SimpleWorkflow {
+export class SimpleWorkflow extends DozerWorkflow<Payload> {
   @Step({ name: 'validate' })
   validate(input: Payload): Promise<Payload> {
     return Promise.resolve({ ...input, validated: true });

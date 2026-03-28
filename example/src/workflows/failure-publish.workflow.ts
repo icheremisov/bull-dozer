@@ -1,4 +1,4 @@
-import { NonRetryableError, Step, Workflow } from 'dozer';
+import { DozerWorkflow, NonRetryableError, Step, Workflow } from 'dozer';
 
 @Workflow({
   name: 'failure-publish',
@@ -10,7 +10,7 @@ import { NonRetryableError, Step, Workflow } from 'dozer';
     publishOnFailure: true,
   },
 })
-export class FailurePublishWorkflow {
+export class FailurePublishWorkflow extends DozerWorkflow<{ id: string }> {
   @Step({ name: 'fail' })
   fail(id: string): Promise<void> {
     return Promise.reject(
