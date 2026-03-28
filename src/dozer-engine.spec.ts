@@ -197,6 +197,67 @@ class DuplicateJobIdResultQueue extends CapturingResultQueue {
   }
 }
 
+@Injectable()
+class OnFailedSpy {
+  calls: Array<{ error: Error; input: unknown; jobId: string }> = [];
+  throwOnCall = false;
+}
+
+@Workflow({ name: 'on-failed-workflow' })
+class OnFailedWorkflow {
+  constructor(private readonly spy: OnFailedSpy) {}
+
+  @Step({ name: 'fail-step' })
+  failStep(): Promise<void> {
+    throw new Error('step-on-failed-error');
+  }
+
+  async run(input: { value: number }): Promise<void> {
+    await this.failStep();
+  }
+
+  async onFailed(
+    error: Error,
+    input: { value: number },
+    jobId: string,
+  ): Promise<void> {
+    if (this.spy.throwOnCall) {
+      throw new Error('on-failed-handler-threw');
+    }
+    this.spy.calls.push({ error, input, jobId });
+  }
+}
+
+@Workflow({ name: 'on-failed-non-retryable-workflow' })
+class OnFailedNonRetryableWorkflow {
+  constructor(private readonly spy: OnFailedSpy) {}
+
+  @Step({ name: 'non-retryable-step' })
+  failStep(): Promise<void> {
+    throw new NonRetryableError('non-retryable-step-error');
+  }
+
+  async run(): Promise<void> {
+    await this.failStep();
+  }
+
+  async onFailed(error: Error, input: unknown, jobId: string): Promise<void> {
+    this.spy.calls.push({ error, input, jobId });
+  }
+}
+
+@Workflow({ name: 'no-on-failed-workflow' })
+class NoOnFailedWorkflow {
+  @Step({ name: 'fail' })
+  fail(): Promise<void> {
+    throw new Error('no-handler-error');
+  }
+
+  async run(): Promise<void> {
+    await this.fail();
+  }
+}
+
 @Workflow({ name: 'recovery-workflow' })
 class RecoveryWorkflow {
   constructor(private readonly stats: RecoveryStats) {}
@@ -2079,6 +2140,114 @@ describe('DozerClient module', () => {
       );
     } finally {
       await moduleRef.close();
+    }
+  });
+
+  it('calls onFailed method with error, input, and jobId on terminal failure', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature([OnFailedWorkflow], [OnFailedSpy]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const spy = localModule.get(OnFailedSpy);
+      const jobId = await localEngine.start('on-failed-workflow', {
+        value: 42,
+      });
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'step-on-failed-error',
+      );
+
+      expect(spy.calls).toHaveLength(1);
+      expect(spy.calls[0].error.message).toBe('step-on-failed-error');
+      expect(spy.calls[0].input).toEqual({ value: 42 });
+      expect(spy.calls[0].jobId).toBe(jobId);
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('suppresses errors thrown inside onFailed and still throws original error', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature([OnFailedWorkflow], [OnFailedSpy]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const spy = localModule.get(OnFailedSpy);
+      spy.throwOnCall = true;
+
+      const jobId = await localEngine.start('on-failed-workflow', {
+        value: 1,
+      });
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'step-on-failed-error',
+      );
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('does not crash when workflow has no onFailed method', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature([NoOnFailedWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const jobId = await localEngine.start('no-on-failed-workflow', {});
+      await expect(localEngine.run(jobId)).rejects.toThrow('no-handler-error');
+    } finally {
+      await localModule.close();
+    }
+  });
+
+  it('calls onFailed when NonRetryableError is thrown', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature(
+          [OnFailedNonRetryableWorkflow],
+          [OnFailedSpy],
+        ),
+      ],
+    }).compile();
+    await localModule.init();
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const spy = localModule.get(OnFailedSpy);
+      const jobId = await localEngine.start(
+        'on-failed-non-retryable-workflow',
+        {},
+      );
+
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'non-retryable-step-error',
+      );
+
+      expect(spy.calls).toHaveLength(1);
+      expect(spy.calls[0].error.message).toBe('non-retryable-step-error');
+    } finally {
+      await localModule.close();
     }
   });
 });

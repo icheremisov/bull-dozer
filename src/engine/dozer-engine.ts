@@ -225,6 +225,7 @@ export class DozerEngine {
     job: WorkflowJob<unknown>,
     definition: RegisteredWorkflow,
     result: unknown,
+    failureError?: Error,
   ): Promise<void> {
     const resultQueueOptions = definition.options.resultQueue;
     const resultQueue = this.moduleOptions.resultQueue;
@@ -232,14 +233,15 @@ export class DozerEngine {
       return;
     }
 
+    const isFailure = failureError !== undefined;
     const payload: WorkflowResultQueueJobData<unknown> = {
       jobId: job.id,
       workflowName: job.name,
-      status: 'completed',
-      result: await serializeForStorage(
-        result,
-        'workflow result queue payload',
-      ),
+      status: isFailure ? 'failed' : 'completed',
+      result: isFailure
+        ? null
+        : await serializeForStorage(result, 'workflow result queue payload'),
+      ...(isFailure ? { error: failureError.message } : {}),
     };
     const resultJobName = resultQueueOptions.jobName ?? `${job.name}:result`;
     const resultQueueJobId = toWorkflowResultQueueJobId(job.id);
@@ -347,6 +349,50 @@ export class DozerEngine {
     }
   }
 
+  private async handleWorkflowFailure(
+    job: WorkflowJob<unknown>,
+    definition: RegisteredWorkflow,
+    workflow: unknown,
+    input: unknown,
+    error: Error,
+  ): Promise<void> {
+    const onFailed = (workflow as Record<string, unknown> | undefined)
+      ?.onFailed;
+    if (typeof onFailed === 'function') {
+      try {
+        await (
+          onFailed as (
+            e: Error,
+            i: unknown,
+            id: string,
+          ) => Promise<void>
+        ).call(workflow, error, input, job.id);
+      } catch {
+        // suppressed
+      }
+    }
+
+    const globalCallback = this.moduleOptions.onWorkflowFailed;
+    if (globalCallback) {
+      try {
+        await globalCallback(job.id, job.name, error);
+      } catch {
+        // suppressed
+      }
+    }
+
+    const shouldPublishFailure =
+      definition.options.resultQueue?.publishOnFailure === true &&
+      Boolean(this.moduleOptions.resultQueue);
+    if (shouldPublishFailure) {
+      try {
+        await this.enqueueWorkflowResult(job, definition, null, error);
+      } catch {
+        // suppressed
+      }
+    }
+  }
+
   async run(jobId: string): Promise<unknown> {
     const job = await this.queue.get(jobId);
     if (!job) {
@@ -363,6 +409,9 @@ export class DozerEngine {
     let workflowRetryStrategy: 'constant' | 'linear' | 'exponential' =
       'constant';
     let workflowFailedAttempts = 0;
+
+    let lastWorkflow: unknown;
+    let lastInput: unknown;
 
     while (true) {
       try {
@@ -391,7 +440,9 @@ export class DozerEngine {
         });
         await stateStore.markRunning();
         const workflow = this.registry.instantiate(definition);
+        lastWorkflow = workflow;
         const input = deserializeFromStorage(job.data[DOZER_JOB_INPUT_KEY]);
+        lastInput = input;
         const result = await WorkflowExecutionContextStorage.run(
           executionContext,
           () => workflow.run(input),
@@ -444,6 +495,15 @@ export class DozerEngine {
 
         const stateStore = new WorkflowStateStore(job);
         await stateStore.markFailed(error);
+        if (definition) {
+          await this.handleWorkflowFailure(
+            job,
+            definition,
+            lastWorkflow,
+            lastInput,
+            asThrownError(error),
+          );
+        }
         throw error;
       }
     }
