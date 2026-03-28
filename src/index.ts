@@ -18,6 +18,8 @@ export type {
   WorkflowResultMessage,
 } from './client/workflow-result-worker';
 
+export { DozerWorkflow } from './workflow/dozer-workflow';
+
 export { Workflow } from './decorators/workflow.decorator';
 export type {
   WorkflowExecutionOptions,
@@ -26,6 +28,7 @@ export type {
 } from './decorators/workflow.decorator';
 export { Step } from './decorators/step.decorator';
 export type { RetryOptions, StepOptions } from './decorators/step.decorator';
+export { NoStep } from './decorators/no-step.decorator';
 export type { WorkflowWithFailureHandler } from './workflow/workflow-with-failure-handler';
 
 export {
@@ -34,6 +37,7 @@ export {
   WORKFLOW_OPTIONS_METADATA,
   STEP_OPTIONS_METADATA,
   WORKFLOW_QUEUE_NAME,
+  NOSTEP_METADATA,
 } from './constants';
 
 export { WORKFLOW_STATUS } from './queue/workflow-queue';
@@ -70,3 +74,5 @@ export { TimeoutError } from './errors/timeout.error';
 export { WorkflowJobNotFoundError } from './errors/workflow-job-not-found.error';
 export { WorkflowCancelledError } from './errors/workflow-cancelled.error';
 export { WorkflowNotRegisteredError } from './errors/workflow-not-registered.error';
+export { WorkflowSleepRequestedError } from './errors/workflow-sleep-requested.error';
+export { WorkflowSignalWaitRequestedError } from './errors/workflow-signal-wait-requested.error';
