@@ -50,4 +50,13 @@ describe('WorkflowStateStore sleep methods', () => {
     expect(state.sl?.['0.0:__sleep__']).toBeUndefined();
     expect(state.u?.['0.0:__sleep__']).toBe(1);
   });
+
+  it('completeSleep removes sl field entirely when last entry is removed', async () => {
+    const job = makeJob();
+    const store = new WorkflowStateStore(job);
+    await store.saveSleepIntent('0:__sleep__', 9999999);
+    await store.completeSleep('0:__sleep__');
+    const state = job.data[DOZER_JOB_STATE_KEY]!;
+    expect(state.sl).toBeUndefined();
+  });
 });

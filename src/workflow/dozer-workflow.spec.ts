@@ -10,6 +10,10 @@ class ConcreteWorkflow extends DozerWorkflow<{ value: number }> {
     return this.sleep(ms);
   }
 
+  async exposeSleepUntil(ts: number): Promise<void> {
+    return this.sleepUntil(ts);
+  }
+
   async exposeWaitForSignal<T>(name: string): Promise<T | null> {
     return this.waitForSignal<T>(name);
   }
@@ -41,5 +45,37 @@ describe('DozerWorkflow', () => {
     );
 
     expect(mockContext.sleep).toHaveBeenCalledWith(100);
+  });
+
+  it('sleepUntil() delegates to sleep() with remaining ms for future timestamp', async () => {
+    const mockContext = {
+      sleep: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const workflow = new ConcreteWorkflow();
+    const futureTs = Date.now() + 5000;
+
+    await WorkflowExecutionContextStorage.run(mockContext as never, () =>
+      workflow.exposeSleepUntil(futureTs),
+    );
+
+    const calledMs = mockContext.sleep.mock.calls[0][0] as number;
+    expect(calledMs).toBeGreaterThan(4000);
+    expect(calledMs).toBeLessThanOrEqual(5000);
+  });
+
+  it('sleepUntil() calls sleep(0) when timestamp is in the past', async () => {
+    const mockContext = {
+      sleep: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const workflow = new ConcreteWorkflow();
+    const pastTs = Date.now() - 1000;
+
+    await WorkflowExecutionContextStorage.run(mockContext as never, () =>
+      workflow.exposeSleepUntil(pastTs),
+    );
+
+    expect(mockContext.sleep).toHaveBeenCalledWith(0);
   });
 });

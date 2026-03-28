@@ -526,55 +526,66 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
     expect(String(response.text)).toContain('Bull Dashboard');
   });
 
-  integrationTest('sleep workflow: completes after sleep period elapses', async () => {
-    const engine = moduleRef.get(DozerEngine);
-    const jobId = await engine.start('sleep-workflow', {
-      id: `sleep-test-${Date.now()}`,
-      durationMs: 200,
-      value: 5,
-    });
+  integrationTest(
+    'sleep workflow: completes after sleep period elapses',
+    async () => {
+      const engine = moduleRef.get(DozerEngine);
+      const jobId = await engine.start('sleep-workflow', {
+        id: `sleep-test-${Date.now()}`,
+        durationMs: 200,
+        value: 5,
+      });
 
-    const data = await waitForTerminalStatus(queue, jobId, 15000);
-    expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({ value: 6 });
-  });
+      const data = await waitForTerminalStatus(queue, jobId, 15000);
+      expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({ value: 6 });
+    },
+  );
 
-  integrationTest('signal workflow: delivers signal and workflow completes with payload', async () => {
-    const engine = moduleRef.get(DozerEngine);
-    const dozerClient = moduleRef.get(DozerClient);
-    const id = `signal-test-${Date.now()}`;
+  integrationTest(
+    'signal workflow: delivers signal and workflow completes with payload',
+    async () => {
+      const engine = moduleRef.get(DozerEngine);
+      const dozerClient = moduleRef.get(DozerClient);
+      const id = `signal-test-${Date.now()}`;
 
-    const jobId = await engine.start('signal-workflow', {
-      id,
-      timeoutMs: 30_000,
-    });
+      const jobId = await engine.start('signal-workflow', {
+        id,
+        timeoutMs: 30_000,
+      });
 
-    await waitForDelayed(queue, jobId, 10_000);
+      await waitForDelayed(queue, jobId, 10_000);
 
-    const delivered = await dozerClient.sendSignal(jobId, 'approval', { userId: 'user-1' });
-    expect(delivered).toBe(true);
+      const delivered = await dozerClient.sendSignal(jobId, 'approval', {
+        userId: 'user-1',
+      });
+      expect(delivered).toBe(true);
 
-    const data = await waitForTerminalStatus(queue, jobId, 15_000);
-    expect(data[DOZER_JOB_STATE_KEY]?.r).toMatchObject({
-      approved: true,
-      payload: { userId: 'user-1' },
-    });
-  });
+      const data = await waitForTerminalStatus(queue, jobId, 15_000);
+      expect(data[DOZER_JOB_STATE_KEY]?.r).toMatchObject({
+        approved: true,
+        payload: { userId: 'user-1' },
+      });
+    },
+  );
 
-  integrationTest('signal workflow: returns null payload on timeout', async () => {
-    const engine = moduleRef.get(DozerEngine);
-    const id = `signal-timeout-test-${Date.now()}`;
+  integrationTest(
+    'signal workflow: returns null payload on timeout',
+    async () => {
+      const engine = moduleRef.get(DozerEngine);
+      const id = `signal-timeout-test-${Date.now()}`;
 
-    const jobId = await engine.start('signal-workflow', {
-      id,
-      timeoutMs: 500,
-    });
+      const jobId = await engine.start('signal-workflow', {
+        id,
+        timeoutMs: 500,
+      });
 
-    const data = await waitForTerminalStatus(queue, jobId, 15_000);
-    expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({
-      approved: false,
-      payload: null,
-    });
-  });
+      const data = await waitForTerminalStatus(queue, jobId, 15_000);
+      expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({
+        approved: false,
+        payload: null,
+      });
+    },
+  );
 });
 const toResultQueueJobId = (workflowJobId: string): string => {
   if (/^\d+$/.test(workflowJobId)) {

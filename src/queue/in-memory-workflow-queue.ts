@@ -22,7 +22,7 @@ class InMemoryWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
 
 export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
   private readonly jobs = new Map<string, WorkflowJob<unknown>>();
-  private readonly delayedJobs = new Set<string>();
+  private readonly delayedJobs = new Map<string, number>();
   private counter = 0;
 
   constructor(private readonly queueName = WORKFLOW_QUEUE_NAME) {}
@@ -49,9 +49,9 @@ export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
     return Promise.resolve((job as WorkflowJob<TInput> | undefined) ?? null);
   }
 
-  moveToDelayed(jobId: string, _timestamp: number, _token?: string): Promise<void> {
+  moveToDelayed(jobId: string, timestamp: number, _token?: string): Promise<void> {
     if (this.jobs.has(jobId)) {
-      this.delayedJobs.add(jobId);
+      this.delayedJobs.set(jobId, timestamp);
     }
     return Promise.resolve();
   }
@@ -64,5 +64,10 @@ export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
   /** Test helper — check if a job is currently in delayed state */
   isDelayed(jobId: string): boolean {
     return this.delayedJobs.has(jobId);
+  }
+
+  /** Test helper — return the timestamp passed to moveToDelayed, or undefined */
+  getDelayedAt(jobId: string): number | undefined {
+    return this.delayedJobs.get(jobId);
   }
 }

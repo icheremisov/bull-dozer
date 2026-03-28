@@ -250,5 +250,32 @@ describe('DozerClient module', () => {
 
       await localModule.close();
     });
+
+    it('delivers signal with undefined payload when no payload argument given', async () => {
+      const queue = new InMemoryWorkflowQueue();
+      const localModule = await Test.createTestingModule({
+        imports: [DozerModule.forRoot({ driver: queue })],
+      }).compile();
+      await localModule.init();
+      const client = localModule.get(DozerClient);
+
+      const jobId = await queue.add('any-workflow', {
+        [DOZER_JOB_INPUT_KEY]: {},
+        [DOZER_JOB_STATE_KEY]: {
+          s: WORKFLOW_STATUS.running,
+          c: {},
+          t: ['0:__signal__:event'],
+          ps: { event: { k: '0:__signal__:event' } },
+        },
+      }).then((j) => j.id);
+
+      const result = await client.sendSignal(jobId, 'event');
+      expect(result).toBe(true);
+
+      const job = await queue.get(jobId);
+      const state = job!.data[DOZER_JOB_STATE_KEY];
+      expect('0:__signal__:event' in (state?.c ?? {})).toBe(true);
+      expect(state?.ps).toBeUndefined();
+    });
   });
 });

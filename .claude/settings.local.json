@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git stash:*)",
+      "Bash(npm test:*)",
+      "Bash(npx jest:*)",
+      "Bash(git -C /Volumes/Storage/Flutter/dozer diff e751181..4eb79fd -- src/dozer-engine.spec.ts)",
+      "Bash(git -C /Volumes/Storage/Flutter/dozer show 4eb79fd:src/dozer-engine.spec.ts)",
+      "Bash(git -C /Volumes/Storage/Flutter/dozer show 4eb79fd:src/engine/dozer-engine.ts)",
+      "Bash(npm run:*)",
+      "Bash(chmod:*)",
+      "WebSearch"
+    ]
+  }
+}

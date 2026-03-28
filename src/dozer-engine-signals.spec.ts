@@ -41,6 +41,21 @@ class SignalTimeoutWorkflow extends DozerWorkflow<unknown> {
   }
 }
 
+@Workflow({ name: 'sleep-then-signal-workflow' })
+class SleepThenSignalWorkflow extends DozerWorkflow<{ value: number }> {
+  @Step({ name: 'compute' })
+  compute(v: number): Promise<number> {
+    return Promise.resolve(v + 1);
+  }
+
+  async run(input: { value: number }): Promise<{ result: number }> {
+    await this.sleep(10_000);
+    const payload = await this.waitForSignal<{ bonus: number }>('ready');
+    const r = await this.compute(input.value + (payload?.bonus ?? 0));
+    return { result: r };
+  }
+}
+
 describe('DozerEngine signal integration', () => {
   let moduleRef: TestingModule;
   let queue: InMemoryWorkflowQueue;
@@ -52,7 +67,7 @@ describe('DozerEngine signal integration', () => {
     moduleRef = await Test.createTestingModule({
       imports: [
         DozerModule.forRoot({ driver: queue }),
-        DozerModule.forFeature([SignalWorkflow, SignalTimeoutWorkflow]),
+        DozerModule.forFeature([SignalWorkflow, SignalTimeoutWorkflow, SleepThenSignalWorkflow]),
       ],
     }).compile();
     await moduleRef.init();
@@ -122,5 +137,91 @@ describe('DozerEngine signal integration', () => {
     // Second run: detects timeout → saves null result → returns { timedOut: true }
     const result = await engine.run(jobId) as { timedOut: boolean };
     expect(result.timedOut).toBe(true);
+  });
+
+  it('workflow completes after sleep stage followed by signal stage', async () => {
+    const jobId = await engine.start('sleep-then-signal-workflow', { value: 5 });
+
+    // Run 1: hits sleep → parks as delayed
+    try { await engine.run(jobId); } catch {}
+    expect(queue.isDelayed(jobId)).toBe(true);
+
+    // Signal before sleep is done → no pending signal yet → returns false
+    const earlySignal = await client.sendSignal(jobId, 'ready', { bonus: 10 });
+    expect(earlySignal).toBe(false);
+
+    // Advance sleep to past
+    const job = await queue.get(jobId);
+    const state = job!.data[DOZER_JOB_STATE_KEY]!;
+    for (const key of Object.keys(state.sl ?? {})) {
+      state.sl![key] = Date.now() - 1;
+    }
+    await job!.updateData(job!.data);
+    await queue.promoteDelayed(jobId);
+
+    // Run 2: sleep completes, hits waitForSignal → parks again
+    try { await engine.run(jobId); } catch {}
+    expect(queue.isDelayed(jobId)).toBe(true);
+
+    // Now signal is registered
+    const delivered = await client.sendSignal(jobId, 'ready', { bonus: 10 });
+    expect(delivered).toBe(true);
+    expect(queue.isDelayed(jobId)).toBe(false);
+
+    // Run 3: replays sleep (cached), replays signal (cached), runs compute
+    const result = await engine.run(jobId);
+    expect(result).toEqual({ result: 16 }); // (5 + 10) + 1
+  });
+
+  it('sendSignal with wrong signal name returns false and does not promote job', async () => {
+    const jobId = await engine.start('signal-workflow', { value: 5 });
+    try { await engine.run(jobId); } catch {}
+    expect(queue.isDelayed(jobId)).toBe(true);
+
+    const wrongSignal = await client.sendSignal(jobId, 'other-event', { data: 1 });
+    expect(wrongSignal).toBe(false);
+    expect(queue.isDelayed(jobId)).toBe(true);
+  });
+
+  it('uses moduleOptions.defaults.signalTimeoutMs as deadline when waitForSignal has no timeoutMs', async () => {
+    const customTimeoutMs = 30_000;
+    const localQueue = new InMemoryWorkflowQueue();
+
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          defaults: { signalTimeoutMs: customTimeoutMs },
+        }),
+        DozerModule.forFeature([SignalWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    const localEngine = localModule.get(DozerEngine);
+    const jobId = await localEngine.start('signal-workflow', { value: 1 });
+
+    const before = Date.now();
+    try { await localEngine.run(jobId); } catch {}
+
+    // Job should be delayed; the deadline stored in BullMQ should be ~now + customTimeoutMs
+    // We verify by inspecting the state — ps entry has no expiresAt (that's per-signal)
+    // but moveToDelayed was called with our custom deadline
+    // We can verify indirectly: job is delayed, and the ps entry has no e field
+    const job = await localQueue.get(jobId);
+    const ps = job!.data[DOZER_JOB_STATE_KEY]?.ps;
+    expect(ps).toBeDefined();
+    const signalEntry = Object.values(ps!)[0];
+    // waitForSignal in SignalWorkflow has no timeoutMs → expiresAt undefined
+    expect(signalEntry.e).toBeUndefined();
+    expect(localQueue.isDelayed(jobId)).toBe(true);
+
+    // The engine must have called moveToDelayed with ~now + customTimeoutMs
+    // We can check by looking at the delayedAt stored in InMemoryWorkflowQueue
+    const delayedAt = localQueue.getDelayedAt(jobId);
+    expect(delayedAt).toBeGreaterThanOrEqual(before + customTimeoutMs - 100);
+    expect(delayedAt).toBeLessThanOrEqual(before + customTimeoutMs + 1000);
+
+    await localModule.close();
   });
 });

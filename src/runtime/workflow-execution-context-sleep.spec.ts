@@ -77,6 +77,24 @@ describe('WorkflowExecutionContext.sleep()', () => {
     const ctx = new WorkflowExecutionContext(store);
     await expect(ctx.sleep(5000)).resolves.toBeUndefined();
   });
+
+  it('re-parks with original wakeUpAt when job wakes up before timer elapses', async () => {
+    const futureWakeUpAt = Date.now() + 60_000;
+    const stepKey = '0:__sleep__';
+    const job = makeJob({ sl: { [stepKey]: futureWakeUpAt }, t: [stepKey] });
+    const store = new WorkflowStateStore(job);
+    const ctx = new WorkflowExecutionContext(store);
+
+    let error!: WorkflowSleepRequestedError;
+    try {
+      await ctx.sleep(5000);
+    } catch (e) {
+      error = e as WorkflowSleepRequestedError;
+    }
+
+    expect(error).toBeInstanceOf(WorkflowSleepRequestedError);
+    expect(error.wakeUpAt).toBe(futureWakeUpAt);
+  });
 });
 
 describe('WorkflowExecutionContext.waitForSignal()', () => {
@@ -126,5 +144,25 @@ describe('WorkflowExecutionContext.waitForSignal()', () => {
     const ctx = new WorkflowExecutionContext(store);
     const result = await ctx.waitForSignal<{ amount: number }>('payment');
     expect(result).toEqual(payload);
+  });
+
+  it('re-parks with undefined expiresAt when pending signal has no timeout', async () => {
+    const stepKey = '0:__signal__:event';
+    const job = makeJob({
+      ps: { event: { k: stepKey } },
+      t: [stepKey],
+    });
+    const store = new WorkflowStateStore(job);
+    const ctx = new WorkflowExecutionContext(store);
+
+    let error!: WorkflowSignalWaitRequestedError;
+    try {
+      await ctx.waitForSignal('event');
+    } catch (e) {
+      error = e as WorkflowSignalWaitRequestedError;
+    }
+
+    expect(error).toBeInstanceOf(WorkflowSignalWaitRequestedError);
+    expect(error.expiresAt).toBeUndefined();
   });
 });
