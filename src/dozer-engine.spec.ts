@@ -1644,6 +1644,7 @@ describe('DozerEngine (library unit tests)', () => {
           jobId,
           workflowName: 'result-queue-workflow',
           result: persistedResult,
+          status: 'completed',
         },
         { jobId },
       );
@@ -1963,6 +1964,7 @@ describe('DozerClient module', () => {
             __dozer_serialized__: 'date',
             v: '2026-02-25T00:00:00.000Z',
           },
+          status: 'completed',
         },
         { jobId: resultQueueJobId },
       );
