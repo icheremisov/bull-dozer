@@ -62,6 +62,8 @@ const isCompactWorkflowState = (
     isRecord(value.c) &&
     (value.a === undefined || isRecord(value.a)) &&
     (value.u === undefined || isRecord(value.u)) &&
+    (value.sl === undefined || isRecord(value.sl)) &&
+    (value.ps === undefined || isRecord(value.ps)) &&
     Array.isArray(value.t)
   );
 };

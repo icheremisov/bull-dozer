@@ -29,6 +29,8 @@ export interface CompactWorkflowState {
   t: string[];
   r?: unknown;
   e?: string;
+  sl?: Record<string, number>;
+  ps?: Record<string, { k: string; e?: number }>;
 }
 
 export interface WorkflowJobData<TInput = unknown> {
