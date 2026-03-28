@@ -243,6 +243,73 @@ export class WorkflowStateStore<TInput = unknown> {
     return nextValue;
   }
 
+  saveSleepIntent(stepKey: string, wakeUpAt: number): Promise<void> {
+    this.state.sl = this.state.sl ?? {};
+    this.state.sl[stepKey] = wakeUpAt;
+    return this.flush();
+  }
+
+  getSleepIntent(stepKey: string): number | undefined {
+    return this.state.sl?.[stepKey];
+  }
+
+  async completeSleep(stepKey: string): Promise<void> {
+    if (this.state.sl) {
+      delete this.state.sl[stepKey];
+      if (Object.keys(this.state.sl).length === 0) {
+        this.state.sl = undefined;
+      }
+    }
+    this.state.u = this.state.u ?? {};
+    this.state.u[stepKey] = 1;
+    await this.flush();
+  }
+
+  savePendingSignal(
+    signalName: string,
+    stepKey: string,
+    expiresAt?: number,
+  ): Promise<void> {
+    this.state.ps = this.state.ps ?? {};
+    this.state.ps[signalName] = expiresAt !== undefined
+      ? { k: stepKey, e: expiresAt }
+      : { k: stepKey };
+    return this.flush();
+  }
+
+  getPendingSignal(
+    signalName: string,
+  ): { stepKey: string; expiresAt?: number } | undefined {
+    const entry = this.state.ps?.[signalName];
+    if (!entry) return undefined;
+    return { stepKey: entry.k, expiresAt: entry.e };
+  }
+
+  async clearPendingSignal(signalName: string): Promise<void> {
+    if (this.state.ps) {
+      delete this.state.ps[signalName];
+      if (Object.keys(this.state.ps).length === 0) {
+        this.state.ps = undefined;
+      }
+    }
+    await this.flush();
+  }
+
+  async deliverSignal(signalName: string, payload: unknown): Promise<boolean> {
+    const pending = this.getPendingSignal(signalName);
+    if (!pending) return false;
+
+    await this.saveStepResult(pending.stepKey, payload);
+    if (this.state.ps) {
+      delete this.state.ps[signalName];
+      if (Object.keys(this.state.ps).length === 0) {
+        this.state.ps = undefined;
+      }
+    }
+    await this.flush();
+    return true;
+  }
+
   async beginStep(traceIndex: number, stepKey: string): Promise<void> {
     const expected = this.state.t[traceIndex];
     if (expected === undefined) {
