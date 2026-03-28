@@ -111,6 +111,7 @@ class WorkflowAutoResumeWorkflow extends DozerWorkflow<{ id: string; value: numb
     return Promise.resolve(value + 1);
   }
 
+  @Step({ name: 'unstable' })
   unstable(id: string): Promise<void> {
     this.stats.unstable += 1;
     if (this.failOnce.shouldFail(`workflow-auto-resume:${id}`, 1)) {
