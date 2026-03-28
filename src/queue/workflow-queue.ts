@@ -63,7 +63,9 @@ export interface WorkflowJobInfo<TResult = unknown> {
 export interface WorkflowResultQueueJobData<TResult = unknown> {
   jobId: string;
   workflowName: string;
-  result: TResult;
+  status: 'completed' | 'failed';
+  result: TResult | null;
+  error?: string;
 }
 
 export interface WorkflowResultQueueJobInfo<TResult = unknown> {

@@ -120,7 +120,12 @@ class CapturingResultQueue implements BullMQQueueLike<
     });
   }
 
-  getJob() {
+  getJob(_jobId?: string): Promise<{
+    id: string | number;
+    name: string;
+    data: WorkflowResultQueueJobData<unknown>;
+    updateData: (nextData: WorkflowResultQueueJobData<unknown>) => Promise<void>;
+  } | null> {
     return Promise.resolve(null);
   }
 }
@@ -1553,6 +1558,7 @@ describe('DozerEngine (library unit tests)', () => {
         data: {
           jobId,
           workflowName: 'result-queue-workflow',
+          status: 'completed',
           result: { value: 11 },
         },
         options: {
@@ -2021,6 +2027,7 @@ describe('DozerClient module', () => {
       data: {
         jobId: '123',
         workflowName: 'my-workflow',
+        status: 'completed',
         result: {
           __dozer_serialized__: 'date',
           v: '2026-02-25T00:00:00.000Z',
@@ -2034,6 +2041,7 @@ describe('DozerClient module', () => {
       resultJobName: 'workflow-result',
       workflowJobId: '123',
       workflowName: 'my-workflow',
+      status: 'completed',
     });
     expect(decoded.result).toBeInstanceOf(Date);
 

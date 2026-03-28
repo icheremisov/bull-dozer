@@ -235,6 +235,7 @@ export class DozerEngine {
     const payload: WorkflowResultQueueJobData<unknown> = {
       jobId: job.id,
       workflowName: job.name,
+      status: 'completed',
       result: await serializeForStorage(
         result,
         'workflow result queue payload',

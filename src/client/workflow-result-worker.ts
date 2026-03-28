@@ -12,7 +12,9 @@ export interface WorkflowResultMessage<TResult = unknown> {
   resultJobName: string;
   workflowJobId: string;
   workflowName: string;
-  result: TResult;
+  status: 'completed' | 'failed';
+  result: TResult | null;
+  error?: string;
 }
 
 export type WorkflowResultHandler<TResult = unknown, TReturn = unknown> = (
@@ -61,7 +63,9 @@ export const decodeWorkflowResultJob = <TResult = unknown>(
     resultJobName: job.name,
     workflowJobId: payload.jobId,
     workflowName: payload.workflowName,
-    result: deserializeFromStorage(payload.result) as TResult,
+    status: (payload.status as 'completed' | 'failed' | undefined) ?? 'completed',
+    result: deserializeFromStorage(payload.result) as TResult | null,
+    error: payload.error as string | undefined,
   };
 };
 
