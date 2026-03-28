@@ -93,6 +93,8 @@ export interface WorkflowQueueDriver {
     options?: WorkflowJobOptions,
   ): Promise<WorkflowJob<TInput>>;
   get<TInput = unknown>(jobId: string): Promise<WorkflowJob<TInput> | null>;
+  moveToDelayed(jobId: string, timestamp: number, token?: string): Promise<void>;
+  promoteDelayed(jobId: string): Promise<void>;
 }
 
 export interface BullMQJobLike<TData> {
@@ -101,6 +103,8 @@ export interface BullMQJobLike<TData> {
   data: TData;
   updateData(data: TData): Promise<void>;
   getState?(): Promise<string>;
+  moveToDelayed?(timestamp: number, token?: string): Promise<void>;
+  promote?(): Promise<void>;
 }
 
 export interface BullMQQueueLike<TData> {
