@@ -38,6 +38,11 @@ export interface DozerModuleOptions {
   queue?: BullMQQueueLike<unknown>;
   resultQueue?: BullMQQueueLike<WorkflowResultQueueJobData<unknown>>;
   defaults?: DozerDefaultsOptions;
+  onWorkflowFailed?: (
+    jobId: string,
+    workflowName: string,
+    error: Error,
+  ) => Promise<void> | void;
 }
 
 export interface DozerModuleAsyncOptions extends Pick<

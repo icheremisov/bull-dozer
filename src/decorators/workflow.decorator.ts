@@ -7,6 +7,7 @@ import type { WorkflowJobOptions } from '../queue/workflow-queue';
 export interface WorkflowResultQueueOptions {
   jobName?: string;
   job?: WorkflowJobOptions;
+  publishOnFailure?: boolean;
 }
 
 export interface WorkflowExecutionOptions {
