@@ -215,4 +215,40 @@ describe('DozerClient module', () => {
       await moduleRef.close();
     }
   });
+
+  describe('DozerClient.sendSignal()', () => {
+    it('returns false when no pending signal exists', async () => {
+      const queue = new InMemoryWorkflowQueue();
+      const localModule = await Test.createTestingModule({
+        imports: [DozerModule.forRoot({ driver: queue })],
+      }).compile();
+      await localModule.init();
+      const client = localModule.get(DozerClient);
+
+      const jobId = await queue.add('any-workflow', {
+        __dozer_input__: {},
+        __dozer_state__: { s: WORKFLOW_STATUS.running, c: {}, t: [] },
+      }).then((j) => j.id);
+
+      const result = await client.sendSignal(jobId, 'payment', { amount: 100 });
+      expect(result).toBe(false);
+
+      await localModule.close();
+    });
+
+    it('throws WorkflowJobNotFoundError for unknown jobId', async () => {
+      const queue = new InMemoryWorkflowQueue();
+      const localModule = await Test.createTestingModule({
+        imports: [DozerModule.forRoot({ driver: queue })],
+      }).compile();
+      await localModule.init();
+      const client = localModule.get(DozerClient);
+
+      await expect(client.sendSignal('nonexistent', 'event')).rejects.toThrow(
+        'not found',
+      );
+
+      await localModule.close();
+    });
+  });
 });

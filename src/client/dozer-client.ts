@@ -131,6 +131,26 @@ export class DozerClient {
     return true;
   }
 
+  async sendSignal<TPayload = unknown>(
+    jobId: string,
+    signalName: string,
+    payload?: TPayload,
+  ): Promise<boolean> {
+    const job = await this.queue.get(jobId);
+    if (!job) {
+      throw new WorkflowJobNotFoundError(jobId);
+    }
+
+    const stateStore = new WorkflowStateStore(job);
+    const delivered = await stateStore.deliverSignal(signalName, payload);
+    if (!delivered) {
+      return false;
+    }
+
+    await this.queue.promoteDelayed(jobId);
+    return true;
+  }
+
   async hasResult(workflowJobId: string): Promise<boolean> {
     return (await this.getResultJob(workflowJobId)) !== null;
   }
