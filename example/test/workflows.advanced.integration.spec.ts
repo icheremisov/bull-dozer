@@ -7,10 +7,14 @@ import {
   SerializationError,
   WORKFLOW_STATUS,
   WorkflowJobData,
+  WorkflowResultQueueJobData,
 } from 'dozer';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { EXAMPLE_WORKFLOW_QUEUE } from '../src/infra/tokens';
+import {
+  EXAMPLE_RESULT_QUEUE,
+  EXAMPLE_WORKFLOW_QUEUE,
+} from '../src/infra/tokens';
 import { FailureMemoryService } from '../src/support/failure-memory.service';
 import { ScenarioControlsService } from '../src/support/scenario-controls.service';
 import { StepOutsideFlowWorkflow } from '../src/workflows/step-outside-flow.workflow';
@@ -61,6 +65,7 @@ describe('Advanced workflows integration', () => {
   let moduleRef: TestingModule;
   let app: INestApplication;
   let queue: Queue<WorkflowJobData<unknown>>;
+  let resultQueue: Queue<WorkflowResultQueueJobData<unknown>>;
   let failureMemory: FailureMemoryService;
   let controls: ScenarioControlsService;
   let thisStateWorkflow: ThisStateWorkflow;
@@ -103,6 +108,9 @@ describe('Advanced workflows integration', () => {
     await app.init();
 
     queue = app.get<Queue<WorkflowJobData<unknown>>>(EXAMPLE_WORKFLOW_QUEUE);
+    resultQueue = app.get<Queue<WorkflowResultQueueJobData<unknown>>>(
+      EXAMPLE_RESULT_QUEUE,
+    );
     failureMemory = app.get(FailureMemoryService);
     controls = app.get(ScenarioControlsService);
     thisStateWorkflow = app.get(ThisStateWorkflow);
@@ -127,6 +135,7 @@ describe('Advanced workflows integration', () => {
 
     await app.close();
     await queue.close();
+    await resultQueue.close();
   }, 20000);
 
   integrationTest(
@@ -799,6 +808,52 @@ describe('Advanced workflows integration', () => {
       const replayedState = replayedJob?.data[DOZER_JOB_STATE_KEY];
       expect(replayedState?.s).toBe(WORKFLOW_STATUS.failed);
       expect(String(replayedState?.e ?? '')).toContain('Step replay conflict');
+    },
+  );
+
+  integrationTest(
+    'calls onFailed method on workflow instance after terminal failure',
+    async () => {
+      const id = nextId('on-failed');
+
+      const start = await request(app.getHttpServer())
+        .post('/workflows/on-failed/start')
+        .send({ id })
+        .expect(201);
+
+      const failed = await waitForTerminalStatus(queue, start.body.jobId);
+      const state = failed[DOZER_JOB_STATE_KEY];
+
+      expect(state?.s).toBe(WORKFLOW_STATUS.failed);
+      expect(failureMemory.calls(`on-failed:callback:${id}`)).toBe(1);
+    },
+  );
+
+  integrationTest(
+    'publishes failure payload to result queue when publishOnFailure is true',
+    async () => {
+      const id = nextId('failure-publish');
+
+      const start = await request(app.getHttpServer())
+        .post('/workflows/failure-publish/start')
+        .send({ id })
+        .expect(201);
+
+      const { jobId } = start.body as { jobId: string };
+      const failed = await waitForTerminalStatus(queue, jobId);
+      const state = failed[DOZER_JOB_STATE_KEY];
+
+      expect(state?.s).toBe(WORKFLOW_STATUS.failed);
+
+      const resultJobId = `#${jobId}`;
+      const resultJob = await resultQueue.getJob(resultJobId);
+      expect(resultJob).toBeDefined();
+      expect(resultJob?.name).toBe('workflow-result');
+      expect(resultJob?.data.status).toBe('failed');
+      expect(resultJob?.data.result).toBeNull();
+      expect(resultJob?.data.error).toContain(`failure-publish-error:${id}`);
+      expect(resultJob?.data.jobId).toBe(jobId);
+      expect(resultJob?.data.workflowName).toBe('failure-publish');
     },
   );
 });

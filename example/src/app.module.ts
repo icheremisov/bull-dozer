@@ -10,6 +10,8 @@ import { FailureMemoryService } from './support/failure-memory.service';
 import { ScenarioControlsService } from './support/scenario-controls.service';
 import { WorkflowJoinService } from './support/workflow-join.service';
 import { ActionNondeterministicWorkflow } from './workflows/action-nondeterministic.workflow';
+import { FailurePublishWorkflow } from './workflows/failure-publish.workflow';
+import { OnFailedWorkflow } from './workflows/on-failed.workflow';
 import { BatchWaitWorkflow } from './workflows/batch-wait.workflow';
 import { BinaryPayloadWorkflow } from './workflows/binary-payload.workflow';
 import { ChildDeepWorkflow } from './workflows/child-deep.workflow';
@@ -93,6 +95,8 @@ import { VersionedLogicWorkflow } from './workflows/versioned-logic.workflow';
         InheritanceDispatchWorkflow,
         InheritancePlainOverrideWorkflow,
         StepOutsideFlowWorkflow,
+        OnFailedWorkflow,
+        FailurePublishWorkflow,
       ],
       [
         FailureMemoryService,

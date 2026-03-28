@@ -165,6 +165,7 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
       expect(resultJob?.data).toEqual({
         jobId,
         workflowName: 'result-queue',
+        status: 'completed',
         result: {
           ok: true,
           value: 11,
