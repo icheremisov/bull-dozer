@@ -12,6 +12,7 @@ import {
   WORKFLOW_STATUS,
 } from './index';
 import { FailOnceService, RetryWorkflow, sleep } from './test/workflow-test-utils';
+import { DozerWorkflow } from './workflow/dozer-workflow';
 
 type RecoveryPayload = Record<string, unknown>;
 
@@ -23,8 +24,10 @@ class RecoveryStats {
 }
 
 @Workflow({ name: 'recovery-workflow' })
-class RecoveryWorkflow {
-  constructor(private readonly stats: RecoveryStats) {}
+class RecoveryWorkflow extends DozerWorkflow<RecoveryPayload> {
+  constructor(private readonly stats: RecoveryStats) {
+    super();
+  }
 
   @Step({ name: 'validate' })
   validate(input: RecoveryPayload): Promise<RecoveryPayload> {
@@ -59,7 +62,7 @@ class RecoveryWorkflow {
 }
 
 @Workflow({ name: 'typed-step-workflow' })
-class TypedStepWorkflow {
+class TypedStepWorkflow extends DozerWorkflow<{ value: number }> {
   @Step({ name: 'void-step' })
   doNothing(): Promise<void> {
     return Promise.resolve();
@@ -83,7 +86,7 @@ class TypedStepWorkflow {
 }
 
 @Workflow({ name: 'repeated-step-workflow' })
-class RepeatedStepWorkflow {
+class RepeatedStepWorkflow extends DozerWorkflow<{ value: number }> {
   @Step({ name: 'inc' })
   inc(value: number): Promise<number> {
     return Promise.resolve(value + 1);
@@ -96,7 +99,7 @@ class RepeatedStepWorkflow {
 }
 
 @Workflow({ name: 'typed-input-workflow' })
-class TypedInputWorkflow {
+class TypedInputWorkflow extends DozerWorkflow<unknown> {
   @Step({ name: 'normalize' })
   normalize(
     input:

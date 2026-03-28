@@ -6,6 +6,7 @@ import {
   WorkflowJobOptions,
   WorkflowResultQueueJobData,
 } from '../index';
+import { DozerWorkflow } from '../workflow/dozer-workflow';
 
 export const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,8 +32,10 @@ export class FailOnceService {
 }
 
 @Workflow({ name: 'retry-workflow' })
-export class RetryWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+export class RetryWorkflow extends DozerWorkflow<{ value: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({ name: 'unstable', retry: { attempts: 3 } })
   unstable(value: number): Promise<number> {

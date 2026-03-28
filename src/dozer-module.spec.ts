@@ -1,15 +1,16 @@
 import { Test } from '@nestjs/testing';
 import { DozerModule, InMemoryWorkflowQueue, Workflow } from './index';
+import { DozerWorkflow } from './workflow/dozer-workflow';
 
 @Workflow({ name: 'duplicate-workflow-name' })
-class DuplicateNameWorkflowA {
+class DuplicateNameWorkflowA extends DozerWorkflow<unknown> {
   run(): Promise<{ ok: true }> {
     return Promise.resolve({ ok: true });
   }
 }
 
 @Workflow({ name: 'duplicate-workflow-name' })
-class DuplicateNameWorkflowB {
+class DuplicateNameWorkflowB extends DozerWorkflow<unknown> {
   run(): Promise<{ ok: true }> {
     return Promise.resolve({ ok: true });
   }

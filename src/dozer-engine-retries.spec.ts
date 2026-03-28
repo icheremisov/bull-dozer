@@ -13,6 +13,7 @@ import {
   WorkflowJobOptions,
 } from './index';
 import { FailOnceService, RetryWorkflow, sleep } from './test/workflow-test-utils';
+import { DozerWorkflow } from './workflow/dozer-workflow';
 
 @Injectable()
 class TimeoutCompensationStats {
@@ -27,8 +28,10 @@ class WorkflowAutoResumeStats {
 }
 
 @Workflow({ name: 'non-retryable-step-workflow' })
-class NonRetryableStepWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class NonRetryableStepWorkflow extends DozerWorkflow<{ id: string; amount: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({
     name: 'validate-minimum',
@@ -50,8 +53,10 @@ class NonRetryableStepWorkflow {
 }
 
 @Workflow({ name: 'timeout-compensation-workflow' })
-class TimeoutCompensationWorkflow {
-  constructor(private readonly stats: TimeoutCompensationStats) {}
+class TimeoutCompensationWorkflow extends DozerWorkflow<unknown> {
+  constructor(private readonly stats: TimeoutCompensationStats) {
+    super();
+  }
 
   @Step({
     name: 'process-order',
@@ -92,11 +97,13 @@ class TimeoutCompensationWorkflow {
     },
   },
 })
-class WorkflowAutoResumeWorkflow {
+class WorkflowAutoResumeWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   constructor(
     private readonly failOnce: FailOnceService,
     private readonly stats: WorkflowAutoResumeStats,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'prepare' })
   prepare(value: number): Promise<number> {
@@ -130,8 +137,10 @@ class WorkflowAutoResumeWorkflow {
     },
   },
 })
-class WorkflowRetryLinearWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class WorkflowRetryLinearWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   run(input: { id: string; value: number }): Promise<{ value: number }> {
     if (this.failOnce.shouldFail(`workflow-retry-linear:${input.id}`, 2)) {
@@ -150,8 +159,10 @@ class WorkflowRetryLinearWorkflow {
     },
   },
 })
-class WorkflowDefaultRetryWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class WorkflowDefaultRetryWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({ name: 'unstable' })
   unstable(input: { id: string; value: number }): Promise<number> {
@@ -168,10 +179,12 @@ class WorkflowDefaultRetryWorkflow {
 }
 
 @Workflow({ name: 'retry-restarts-whole-flow-workflow' })
-class RetryRestartsWholeFlowWorkflow {
+class RetryRestartsWholeFlowWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   private localCounter = 0;
 
-  constructor(private readonly failOnce: FailOnceService) {}
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({ name: 'mutating-step', retry: { attempts: 2 } })
   mutatingStep(input: { id: string; value: number }): Promise<number> {
@@ -194,8 +207,10 @@ class RetryRestartsWholeFlowWorkflow {
 }
 
 @Workflow({ name: 'global-default-retry-workflow' })
-class GlobalDefaultRetryWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class GlobalDefaultRetryWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({ name: 'unstable' })
   unstable(input: { id: string; value: number }): Promise<number> {
@@ -212,8 +227,10 @@ class GlobalDefaultRetryWorkflow {
 }
 
 @Workflow({ name: 'global-default-retry-override-workflow' })
-class GlobalDefaultRetryOverrideWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class GlobalDefaultRetryOverrideWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({
     name: 'unstable',
@@ -241,15 +258,17 @@ class GlobalDefaultRetryOverrideWorkflow {
     removeOnComplete: true,
   },
 })
-class JobOptionsWorkflow {
+class JobOptionsWorkflow extends DozerWorkflow<{ value: number }> {
   run(input: { value: number }): Promise<number> {
     return Promise.resolve(input.value);
   }
 }
 
 @Workflow({ name: 'global-workflow-retry-workflow' })
-class GlobalWorkflowRetryWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class GlobalWorkflowRetryWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   run(input: { id: string; value: number }): Promise<{ value: number }> {
     if (this.failOnce.shouldFail(`global-workflow-retry:${input.id}`, 1)) {
@@ -268,8 +287,10 @@ class GlobalWorkflowRetryWorkflow {
     },
   },
 })
-class GlobalWorkflowRetryOverrideWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class GlobalWorkflowRetryOverrideWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   run(input: { id: string; value: number }): Promise<{ value: number }> {
     if (

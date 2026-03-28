@@ -11,6 +11,7 @@ import {
   WORKFLOW_STATUS,
 } from './index';
 import { FailOnceService } from './test/workflow-test-utils';
+import { DozerWorkflow } from './workflow/dozer-workflow';
 
 @Injectable()
 class BinaryStats {
@@ -19,11 +20,13 @@ class BinaryStats {
 }
 
 @Workflow({ name: 'binary-input-workflow' })
-class BinaryInputWorkflow {
+class BinaryInputWorkflow extends DozerWorkflow<unknown> {
   constructor(
     private readonly stats: BinaryStats,
     private readonly failOnce: FailOnceService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'inspect' })
   inspect(input: {
@@ -80,11 +83,13 @@ class BinaryInputWorkflow {
 }
 
 @Workflow({ name: 'typed-array-result-workflow' })
-class TypedArrayResultWorkflow {
+class TypedArrayResultWorkflow extends DozerWorkflow<{ id: string }> {
   constructor(
     private readonly stats: BinaryStats,
     private readonly failOnce: FailOnceService,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'produce' })
   produce(): Promise<Uint16Array> {
@@ -121,7 +126,7 @@ class TypedArrayResultWorkflow {
 }
 
 @Workflow({ name: 'non-serializable-step-result-workflow' })
-class NonSerializableStepResultWorkflow {
+class NonSerializableStepResultWorkflow extends DozerWorkflow<unknown> {
   @Step({ name: 'bad-result' })
   badResult(): Promise<{ fn: () => number }> {
     return Promise.resolve({
@@ -135,8 +140,10 @@ class NonSerializableStepResultWorkflow {
 }
 
 @Workflow({ name: 'date-payload-workflow' })
-class DatePayloadWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class DatePayloadWorkflow extends DozerWorkflow<{ id: string; at: Date }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({ name: 'normalize-date' })
   normalizeDate(input: {
@@ -169,8 +176,10 @@ class DatePayloadWorkflow {
 }
 
 @Workflow({ name: 'date-step-result-workflow' })
-class DateStepResultWorkflow {
-  constructor(private readonly failOnce: FailOnceService) {}
+class DateStepResultWorkflow extends DozerWorkflow<{ id: string; year: number }> {
+  constructor(private readonly failOnce: FailOnceService) {
+    super();
+  }
 
   @Step({ name: 'make-date' })
   makeDate(input: { year: number }): Promise<Date> {
@@ -205,7 +214,7 @@ class DateStepResultWorkflow {
 }
 
 @Workflow({ name: 'simple-serialization-workflow' })
-class SimpleSerializationWorkflow {
+class SimpleSerializationWorkflow extends DozerWorkflow<Record<string, unknown>> {
   run(input: Record<string, unknown>): Promise<Record<string, unknown>> {
     return Promise.resolve(input);
   }

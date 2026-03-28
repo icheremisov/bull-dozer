@@ -12,6 +12,7 @@ import {
   WORKFLOW_STATUS,
 } from './index';
 import { sleep } from './test/workflow-test-utils';
+import { DozerWorkflow } from './workflow/dozer-workflow';
 
 @Injectable()
 class NestedReplayStats {
@@ -46,11 +47,13 @@ class FailOnceServiceLocal {
 }
 
 @Workflow({ name: 'nondeterministic-workflow' })
-class NonDeterministicWorkflow {
+class NonDeterministicWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   constructor(
     private readonly branch: BranchService,
     private readonly failOnce: FailOnceServiceLocal,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'left-branch' })
   left(input: number): Promise<number> {
@@ -83,11 +86,13 @@ class NonDeterministicWorkflow {
 }
 
 @Workflow({ name: 'nested-replay-workflow' })
-class NestedReplayWorkflow {
+class NestedReplayWorkflow extends DozerWorkflow<{ id: string; value: number }> {
   constructor(
     private readonly stats: NestedReplayStats,
     private readonly failOnce: FailOnceServiceLocal,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step({ name: 'outer' })
   outer(input: { value: number }): Promise<number> {
@@ -125,8 +130,10 @@ class NestedReplayWorkflow {
     determinismProbeMaxDurationMs: 30,
   },
 })
-class DeterminismProbeStableWorkflow {
-  constructor(private readonly stats: DeterminismProbeStats) {}
+class DeterminismProbeStableWorkflow extends DozerWorkflow<{ value: number }> {
+  constructor(private readonly stats: DeterminismProbeStats) {
+    super();
+  }
 
   @Step({ name: 'compute' })
   compute(input: { value: number }): Promise<{ value: number }> {
@@ -146,7 +153,7 @@ class DeterminismProbeStableWorkflow {
     determinismProbeMaxDurationMs: 30,
   },
 })
-class DeterminismProbeRandomWorkflow {
+class DeterminismProbeRandomWorkflow extends DozerWorkflow<unknown> {
   run(): Promise<{ value: number }> {
     return Promise.resolve({ value: Math.random() });
   }
@@ -159,7 +166,7 @@ class DeterminismProbeRandomWorkflow {
     determinismProbeMaxDurationMs: 1,
   },
 })
-class DeterminismProbeSlowWorkflow {
+class DeterminismProbeSlowWorkflow extends DozerWorkflow<{ value: number }> {
   async run(input: { value: number }): Promise<{ value: number }> {
     await sleep(5);
     return { value: input.value + 1 };
@@ -167,7 +174,7 @@ class DeterminismProbeSlowWorkflow {
 }
 
 @Workflow({ name: 'global-determinism-probe-random-workflow' })
-class GlobalDeterminismProbeRandomWorkflow {
+class GlobalDeterminismProbeRandomWorkflow extends DozerWorkflow<unknown> {
   run(): Promise<{ value: number }> {
     return Promise.resolve({ value: Math.random() });
   }

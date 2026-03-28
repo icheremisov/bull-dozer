@@ -14,6 +14,7 @@ import {
   DuplicateJobIdResultQueue,
   FailOnceResultQueue,
 } from './test/workflow-test-utils';
+import { DozerWorkflow } from './workflow/dozer-workflow';
 
 @Workflow({
   name: 'result-queue-workflow',
@@ -24,7 +25,7 @@ import {
     },
   },
 })
-class ResultQueueWorkflow {
+class ResultQueueWorkflow extends DozerWorkflow<{ value: number }> {
   run(input: { value: number }): Promise<{ value: number }> {
     return Promise.resolve({ value: input.value + 1 });
   }

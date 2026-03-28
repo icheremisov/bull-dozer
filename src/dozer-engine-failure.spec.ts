@@ -9,6 +9,8 @@ import {
   Workflow,
 } from './index';
 import { CapturingResultQueue } from './test/workflow-test-utils';
+import { DozerWorkflow } from './workflow/dozer-workflow';
+import { NoStep } from './decorators/no-step.decorator';
 
 @Injectable()
 class OnFailedSpy {
@@ -17,8 +19,10 @@ class OnFailedSpy {
 }
 
 @Workflow({ name: 'on-failed-workflow' })
-class OnFailedWorkflow {
-  constructor(private readonly spy: OnFailedSpy) {}
+class OnFailedWorkflow extends DozerWorkflow<{ value: number }> {
+  constructor(private readonly spy: OnFailedSpy) {
+    super();
+  }
 
   @Step({ name: 'fail-step' })
   failStep(): Promise<void> {
@@ -29,6 +33,7 @@ class OnFailedWorkflow {
     await this.failStep();
   }
 
+  @NoStep()
   async onFailed(
     error: Error,
     input: { value: number },
@@ -42,8 +47,10 @@ class OnFailedWorkflow {
 }
 
 @Workflow({ name: 'on-failed-non-retryable-workflow' })
-class OnFailedNonRetryableWorkflow {
-  constructor(private readonly spy: OnFailedSpy) {}
+class OnFailedNonRetryableWorkflow extends DozerWorkflow<unknown> {
+  constructor(private readonly spy: OnFailedSpy) {
+    super();
+  }
 
   @Step({ name: 'non-retryable-step' })
   failStep(): Promise<void> {
@@ -54,13 +61,14 @@ class OnFailedNonRetryableWorkflow {
     await this.failStep();
   }
 
+  @NoStep()
   async onFailed(error: Error, input: unknown, jobId: string): Promise<void> {
     this.spy.calls.push({ error, input, jobId });
   }
 }
 
 @Workflow({ name: 'no-on-failed-workflow' })
-class NoOnFailedWorkflow {
+class NoOnFailedWorkflow extends DozerWorkflow<unknown> {
   @Step({ name: 'fail' })
   fail(): Promise<void> {
     throw new Error('no-handler-error');
@@ -72,7 +80,7 @@ class NoOnFailedWorkflow {
 }
 
 @Workflow({ name: 'global-callback-workflow' })
-class GlobalCallbackWorkflow {
+class GlobalCallbackWorkflow extends DozerWorkflow<unknown> {
   @Step({ name: 'fail' })
   fail(): Promise<void> {
     throw new Error('global-callback-error');
@@ -84,7 +92,7 @@ class GlobalCallbackWorkflow {
 }
 
 @Workflow({ name: 'global-callback-non-retryable-workflow' })
-class GlobalCallbackNonRetryableWorkflow {
+class GlobalCallbackNonRetryableWorkflow extends DozerWorkflow<unknown> {
   @Step({ name: 'fail' })
   fail(): Promise<void> {
     throw new NonRetryableError('global-nr-error');
@@ -102,7 +110,7 @@ class GlobalCallbackNonRetryableWorkflow {
     publishOnFailure: true,
   },
 })
-class FailurePublishWorkflow {
+class FailurePublishWorkflow extends DozerWorkflow<{ value: number }> {
   @Step({ name: 'fail' })
   fail(): Promise<void> {
     throw new Error('failure-publish-error');
@@ -120,7 +128,7 @@ class FailurePublishWorkflow {
     // publishOnFailure not set — defaults to false
   },
 })
-class FailureNoPublishWorkflow {
+class FailureNoPublishWorkflow extends DozerWorkflow<unknown> {
   @Step({ name: 'fail' })
   fail(): Promise<void> {
     throw new Error('no-publish-failure-error');
