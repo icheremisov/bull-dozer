@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
   DozerEngine,
@@ -136,6 +136,67 @@ class FailureNoPublishWorkflow extends DozerWorkflow<unknown> {
 
   async run(): Promise<void> {
     await this.fail();
+  }
+}
+
+@Injectable()
+class OnFailedHangSpy {
+  hang = false;
+}
+
+@Workflow({ name: 'on-failed-hang-workflow' })
+class OnFailedHangWorkflow extends DozerWorkflow<unknown> {
+  constructor(private readonly spy: OnFailedHangSpy) {
+    super();
+  }
+
+  @Step({ name: 'fail-hang' })
+  failStep(): Promise<void> {
+    throw new Error('hang-workflow-error');
+  }
+
+  async run(): Promise<void> {
+    await this.failStep();
+  }
+
+  @NoStep()
+  async onFailed(): Promise<void> {
+    if (this.spy.hang) {
+      await new Promise<void>(() => {
+        // intentionally never resolves
+      });
+    }
+  }
+}
+
+@Injectable()
+class OnFailedStepSpy {
+  sideEffect = false;
+}
+
+@Workflow({ name: 'on-failed-calls-step-workflow' })
+class OnFailedCallsStepWorkflow extends DozerWorkflow<unknown> {
+  constructor(private readonly spy: OnFailedStepSpy) {
+    super();
+  }
+
+  @Step({ name: 'regular-step' })
+  regularStep(): void {
+    this.spy.sideEffect = true;
+  }
+
+  @Step({ name: 'fail-step' })
+  failStep(): Promise<void> {
+    throw new Error('calls-step-workflow-error');
+  }
+
+  async run(): Promise<void> {
+    await this.failStep();
+  }
+
+  @NoStep()
+  async onFailed(): Promise<void> {
+    await this.regularStep();
   }
 }
 
@@ -438,6 +499,107 @@ describe('DozerEngine failure handling', () => {
     await expect(localEngine.run(jobId)).rejects.toThrow('404');
 
     await localModule.close();
+  });
+
+  it('logs error when onFailed throws', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature([OnFailedWorkflow], [OnFailedSpy]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const spy = localModule.get(OnFailedSpy);
+      spy.throwOnCall = true;
+
+      const jobId = await localEngine.start('on-failed-workflow', { value: 1 });
+
+      await expect(localEngine.run(jobId)).rejects.toThrow('step-on-failed-error');
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('on-failed-handler-threw'),
+        expect.anything(),
+      );
+    } finally {
+      errorSpy.mockRestore();
+      await localModule.close();
+    }
+  });
+
+  it('times out onFailed and logs error, still throws original error', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({
+          driver: localQueue,
+          defaults: { onFailedTimeoutMs: 50 },
+        }),
+        DozerModule.forFeature([OnFailedHangWorkflow], [OnFailedHangSpy]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const spy = localModule.get(OnFailedHangSpy);
+      spy.hang = true;
+
+      const jobId = await localEngine.start('on-failed-hang-workflow', {});
+
+      await expect(localEngine.run(jobId)).rejects.toThrow('hang-workflow-error');
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('timed out after 50ms'),
+        expect.anything(),
+      );
+    } finally {
+      errorSpy.mockRestore();
+      await localModule.close();
+    }
+  });
+
+  it('logs warning when @Step method is called from onFailed', async () => {
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature([OnFailedCallsStepWorkflow], [OnFailedStepSpy]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    try {
+      const localEngine = localModule.get(DozerEngine);
+      const spy = localModule.get(OnFailedStepSpy);
+
+      const jobId = await localEngine.start('on-failed-calls-step-workflow', {});
+
+      await expect(localEngine.run(jobId)).rejects.toThrow('calls-step-workflow-error');
+
+      expect(spy.sideEffect).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('regular-step'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+      await localModule.close();
+    }
   });
 
   it('does not publish to result queue on failure when publishOnFailure is false', async () => {

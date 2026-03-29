@@ -32,6 +32,7 @@ export interface DozerDefaultsOptions {
   job?: WorkflowJobOptions;
   execution?: WorkflowExecutionOptions;
   signalTimeoutMs?: number; // default: 7 days
+  onFailedTimeoutMs?: number; // default: 30 seconds; set to 0 to disable
 }
 
 export interface DozerModuleOptions {

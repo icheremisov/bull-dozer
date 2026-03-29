@@ -12,7 +12,13 @@
       "Bash(git -C /Volumes/Storage/Flutter/dozer show 4eb79fd:src/engine/dozer-engine.ts)",
       "Bash(npm run:*)",
       "Bash(chmod:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(/usr/local/bin/node --version)",
+      "Bash(/opt/homebrew/bin/node --version)",
+      "Read(//usr/local/bin/**)",
+      "Bash(/opt/homebrew/bin/node node_modules/.bin/jest src/dozer-engine-failure.spec.ts --no-coverage)",
+      "Bash(/opt/homebrew/bin/node node_modules/.bin/jest --no-coverage)"
     ]
   }
 }

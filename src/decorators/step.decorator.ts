@@ -1,10 +1,14 @@
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { STEP_OPTIONS_METADATA } from '../constants';
 import { NonRetryableError } from '../errors/non-retryable.error';
 import { TimeoutError } from '../errors/timeout.error';
 import { WorkflowExecutionContextStorage } from '../runtime/workflow-execution-context';
+import { OnFailedContextStorage } from '../runtime/on-failed-context';
 import { BackoffStrategy, resolveRetryDelayMs } from '../runtime/retry-policy';
 import { WorkflowRetryRequestedError } from '../runtime/workflow-retry-requested.error';
+
+const stepLogger = new Logger('DozerStep');
 
 export interface RetryOptions {
   attempts?: number;
@@ -77,6 +81,11 @@ export function Step(options: StepOptions = {}): MethodDecorator {
     ): Promise<unknown> {
       const context = WorkflowExecutionContextStorage.get();
       if (!context) {
+        if (OnFailedContextStorage.isActive()) {
+          stepLogger.warn(
+            `Step "${stepName}" was called from an onFailed handler. Steps run without workflow semantics in this context (no caching, retry, or determinism checks).`,
+          );
+        }
         const executed = method.call(this, ...args) as unknown;
         return Promise.resolve(executed);
       }

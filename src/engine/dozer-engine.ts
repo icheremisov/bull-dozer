@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DelayedError } from 'bullmq';
 import {
   DOZER_JOB_INPUT_KEY,
@@ -29,6 +29,7 @@ import {
   WorkflowExecutionContext,
   WorkflowExecutionContextStorage,
 } from '../runtime/workflow-execution-context';
+import { OnFailedContextStorage } from '../runtime/on-failed-context';
 import { getWorkflowJobInfo } from '../runtime/workflow-job-info';
 import { WorkflowStateStore } from '../runtime/workflow-state.store';
 import {
@@ -62,6 +63,28 @@ class WorkflowDeterminismProbeStageError extends NonRetryableError {
     super('Workflow determinism probe failed after completion.', cause);
   }
 }
+
+const DEFAULT_ON_FAILED_TIMEOUT_MS = 30_000;
+
+const withOnFailedTimeout = async (
+  promise: Promise<void>,
+  timeoutMs: number,
+): Promise<void> => {
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timerId = setTimeout(
+          () => reject(new Error(`onFailed timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timerId);
+  }
+};
 
 const asThrownError = (value: unknown): Error => {
   if (value instanceof Error) {
@@ -152,6 +175,8 @@ const mergeJobOptions = (
 
 @Injectable()
 export class DozerEngine {
+  private readonly logger = new Logger(DozerEngine.name);
+
   constructor(
     private readonly registry: WorkflowRegistry,
     @Inject(DOZER_MODULE_OPTIONS)
@@ -362,16 +387,27 @@ export class DozerEngine {
     const onFailed = (workflow as Record<string, unknown> | undefined)
       ?.onFailed;
     if (typeof onFailed === 'function') {
+      const timeoutMs =
+        this.moduleOptions.defaults?.onFailedTimeoutMs ?? DEFAULT_ON_FAILED_TIMEOUT_MS;
       try {
-        await (
-          onFailed as (
-            e: Error,
-            i: unknown,
-            id: string,
-          ) => Promise<void>
-        ).call(workflow, error, input, job.id);
-      } catch {
-        // suppressed
+        const promise = OnFailedContextStorage.run(() =>
+          (onFailed as (e: Error, i: unknown, id: string) => Promise<void>).call(
+            workflow,
+            error,
+            input,
+            job.id,
+          ),
+        );
+        if (timeoutMs > 0) {
+          await withOnFailedTimeout(promise, timeoutMs);
+        } else {
+          await promise;
+        }
+      } catch (handlerError) {
+        this.logger.error(
+          `onFailed handler for workflow "${job.name}" (job ${job.id}) failed: ${(handlerError as Error).message}`,
+          (handlerError as Error).stack,
+        );
       }
     }
 
