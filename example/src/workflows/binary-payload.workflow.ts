@@ -2,7 +2,13 @@ import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'binary-payload' })
-export class BinaryPayloadWorkflow extends DozerWorkflow<{ id: string; bytes: Uint8Array; arrayBuffer: ArrayBuffer; buffer: Buffer; blob?: Blob }> {
+export class BinaryPayloadWorkflow extends DozerWorkflow<{
+  id: string;
+  bytes: Uint8Array;
+  arrayBuffer: ArrayBuffer;
+  buffer: Buffer;
+  blob?: Blob;
+}> {
   constructor(private readonly failureMemory: FailureMemoryService) {
     super();
   }

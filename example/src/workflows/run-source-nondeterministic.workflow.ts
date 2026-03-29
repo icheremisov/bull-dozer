@@ -5,7 +5,11 @@ import { ScenarioControlsService } from '../support/scenario-controls.service';
 type SourceKind = 'timer' | 'random' | 'external';
 
 @Workflow({ name: 'run-source-nondeterministic' })
-export class RunSourceNondeterministicWorkflow extends DozerWorkflow<{ id: string; source: SourceKind; value: number }> {
+export class RunSourceNondeterministicWorkflow extends DozerWorkflow<{
+  id: string;
+  source: SourceKind;
+  value: number;
+}> {
   constructor(
     private readonly controls: ScenarioControlsService,
     private readonly failureMemory: FailureMemoryService,

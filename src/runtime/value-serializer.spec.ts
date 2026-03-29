@@ -31,7 +31,10 @@ describe('serializeForStorage + deserializeFromStorage (round-trip)', () => {
   });
 
   it('restores nested undefined inside object', async () => {
-    const result = (await roundTrip({ a: undefined, b: 1 })) as Record<string, unknown>;
+    const result = (await roundTrip({ a: undefined, b: 1 })) as Record<
+      string,
+      unknown
+    >;
     expect(result.a).toBeUndefined();
     expect(result.b).toBe(1);
   });
@@ -61,7 +64,9 @@ describe('serializeForStorage + deserializeFromStorage (round-trip)', () => {
     const ab = new Uint8Array([5, 6, 7]).buffer;
     const result = await roundTrip(ab);
     expect(result).toBeInstanceOf(ArrayBuffer);
-    expect(Array.from(new Uint8Array(result as ArrayBuffer))).toEqual([5, 6, 7]);
+    expect(Array.from(new Uint8Array(result as ArrayBuffer))).toEqual([
+      5, 6, 7,
+    ]);
   });
 
   it('restores DataView correctly', async () => {
@@ -88,7 +93,9 @@ describe('serializeForStorage + deserializeFromStorage (round-trip)', () => {
     for (const [name, typed] of cases) {
       const result = await roundTrip(typed);
       expect(result?.constructor?.name).toBe(name);
-      expect(Array.from(result as Int8Array)).toEqual(Array.from(typed as Int8Array));
+      expect(Array.from(result as Int8Array)).toEqual(
+        Array.from(typed as Int8Array),
+      );
     }
   });
 
@@ -113,7 +120,13 @@ describe('serializeForStorage + deserializeFromStorage (round-trip)', () => {
   });
 
   it('restores array with mixed types', async () => {
-    const input = [1, 'two', null, undefined, new Date('2026-01-01T00:00:00.000Z')];
+    const input = [
+      1,
+      'two',
+      null,
+      undefined,
+      new Date('2026-01-01T00:00:00.000Z'),
+    ];
     const result = (await roundTrip(input)) as unknown[];
     expect(result[0]).toBe(1);
     expect(result[1]).toBe('two');
@@ -143,7 +156,9 @@ describe('serializeForStorage — error cases', () => {
   });
 
   it('throws SerializationError for class instance (non-plain object)', async () => {
-    class Foo { value = 1; }
+    class Foo {
+      value = 1;
+    }
     await expect(serializeForStorage(new Foo())).rejects.toBeInstanceOf(
       SerializationError,
     );
@@ -158,15 +173,18 @@ describe('serializeForStorage — error cases', () => {
   });
 
   it('throws SerializationError for invalid Date', async () => {
-    await expect(serializeForStorage(new Date('invalid'))).rejects.toBeInstanceOf(
-      SerializationError,
-    );
+    await expect(
+      serializeForStorage(new Date('invalid')),
+    ).rejects.toBeInstanceOf(SerializationError);
   });
 
   it('includes path in error message for nested bigint', async () => {
     let error!: SerializationError;
     try {
-      await serializeForStorage({ nested: { value: BigInt(1) } }, 'step-result');
+      await serializeForStorage(
+        { nested: { value: BigInt(1) } },
+        'step-result',
+      );
     } catch (e) {
       error = e as SerializationError;
     }

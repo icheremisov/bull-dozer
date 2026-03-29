@@ -24,12 +24,12 @@ class PollingWorkflow extends DozerWorkflow<{ maxChecks: number }> {
   }
 
   @Step({ name: 'check' })
-  async checkStatus(): Promise<boolean> {
+  checkStatus(): Promise<boolean> {
     this.stats.checkCalls += 1;
-    return this.stats.checkCalls >= 3;
+    return Promise.resolve(this.stats.checkCalls >= 3);
   }
 
-  async run(input: { maxChecks: number }): Promise<{ checks: number }> {
+  async run(): Promise<{ checks: number }> {
     this.stats.runs += 1;
     let done = false;
     while (!done) {
@@ -92,14 +92,22 @@ describe('DozerEngine sleep integration', () => {
 
   it('job is marked as delayed in the queue after sleep', async () => {
     const jobId = await engine.start('sleep-once-workflow', { value: 5 });
-    try { await engine.run(jobId); } catch {}
+    try {
+      await engine.run(jobId);
+    } catch {
+      // intentionally empty
+    }
     expect(queue.isDelayed(jobId)).toBe(true);
   });
 
   it('workflow completes correctly after being promoted from sleep', async () => {
     const jobId = await engine.start('sleep-once-workflow', { value: 5 });
     // First run: stops at sleep
-    try { await engine.run(jobId); } catch {}
+    try {
+      await engine.run(jobId);
+    } catch {
+      // intentionally empty
+    }
     expect(queue.isDelayed(jobId)).toBe(true);
 
     // Simulate BullMQ waking the job (set wakeUpAt to past)
@@ -120,7 +128,11 @@ describe('DozerEngine sleep integration', () => {
     const jobId = await engine.start('polling-workflow', { maxChecks: 3 });
 
     // First resume: sleep → DelayedError. checkStatus not called yet (sleep happens first)
-    try { await engine.run(jobId); } catch {}
+    try {
+      await engine.run(jobId);
+    } catch {
+      // intentionally empty
+    }
     expect(stats.checkCalls).toBe(0);
 
     const advanceSleep = async (): Promise<void> => {
@@ -137,17 +149,25 @@ describe('DozerEngine sleep integration', () => {
 
     // Second resume: sleep completes, checkStatus called (returns false → sleep again)
     await advanceSleep();
-    try { await engine.run(jobId); } catch {}
+    try {
+      await engine.run(jobId);
+    } catch {
+      // intentionally empty
+    }
     expect(stats.checkCalls).toBe(1);
 
     // Third resume: sleep completes, checkStatus called (returns false → sleep again)
     await advanceSleep();
-    try { await engine.run(jobId); } catch {}
+    try {
+      await engine.run(jobId);
+    } catch {
+      // intentionally empty
+    }
     expect(stats.checkCalls).toBe(2);
 
     // Fourth resume: sleep completes, checkStatus called (returns true → workflow ends)
     await advanceSleep();
-    const result = await engine.run(jobId) as { checks: number };
+    const result = (await engine.run(jobId)) as { checks: number };
     expect(result.checks).toBe(3);
     expect(stats.runs).toBe(4);
   });

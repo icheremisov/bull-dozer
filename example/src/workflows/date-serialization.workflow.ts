@@ -2,7 +2,10 @@ import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'date-serialization' })
-export class DateSerializationWorkflow extends DozerWorkflow<{ id: string; at: Date }> {
+export class DateSerializationWorkflow extends DozerWorkflow<{
+  id: string;
+  at: Date;
+}> {
   constructor(private readonly failureMemory: FailureMemoryService) {
     super();
   }

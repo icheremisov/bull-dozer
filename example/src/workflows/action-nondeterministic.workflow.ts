@@ -2,7 +2,9 @@ import { DozerWorkflow, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'action-nondeterministic' })
-export class ActionNondeterministicWorkflow extends DozerWorkflow<{ id: string }> {
+export class ActionNondeterministicWorkflow extends DozerWorkflow<{
+  id: string;
+}> {
   constructor(private readonly failureMemory: FailureMemoryService) {
     super();
   }

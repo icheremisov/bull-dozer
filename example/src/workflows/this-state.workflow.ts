@@ -6,7 +6,10 @@ interface RuntimeState {
 }
 
 @Workflow({ name: 'this-state' })
-export class ThisStateWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+export class ThisStateWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   current?: RuntimeState;
 
   constructor(private readonly failureMemory: FailureMemoryService) {

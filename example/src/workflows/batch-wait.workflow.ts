@@ -6,7 +6,10 @@ const sleep = async (ms: number): Promise<void> => {
 };
 
 @Workflow({ name: 'batch-wait' })
-export class BatchWaitWorkflow extends DozerWorkflow<{ id: string; values: number[] }> {
+export class BatchWaitWorkflow extends DozerWorkflow<{
+  id: string;
+  values: number[];
+}> {
   constructor(private readonly failureMemory: FailureMemoryService) {
     super();
   }

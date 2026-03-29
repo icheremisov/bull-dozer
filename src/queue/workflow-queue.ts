@@ -93,7 +93,11 @@ export interface WorkflowQueueDriver {
     options?: WorkflowJobOptions,
   ): Promise<WorkflowJob<TInput>>;
   get<TInput = unknown>(jobId: string): Promise<WorkflowJob<TInput> | null>;
-  moveToDelayed(jobId: string, timestamp: number, token?: string): Promise<void>;
+  moveToDelayed(
+    jobId: string,
+    timestamp: number,
+    token?: string,
+  ): Promise<void>;
   promoteDelayed(jobId: string): Promise<void>;
 }
 

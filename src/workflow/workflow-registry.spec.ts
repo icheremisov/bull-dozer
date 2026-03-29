@@ -1,16 +1,19 @@
 import { WorkflowNotRegisteredError } from '../errors/workflow-not-registered.error';
-import type { RegisteredWorkflowOptions, RunnableWorkflow } from './workflow-registry';
+import type {
+  RegisteredWorkflowOptions,
+  RunnableWorkflow,
+} from './workflow-registry';
 import { WorkflowRegistry } from './workflow-registry';
 
 class FakeWorkflow {
-  async run(_input: unknown): Promise<unknown> {
-    return 'result';
+  run(): Promise<unknown> {
+    return Promise.resolve('result');
   }
 }
 
 class AnotherWorkflow {
-  async run(_input: unknown): Promise<unknown> {
-    return 'other';
+  run(): Promise<unknown> {
+    return Promise.resolve('other');
   }
 }
 
@@ -42,9 +45,17 @@ describe('WorkflowRegistry', () => {
     });
 
     it('throws when registering same name with different class', () => {
-      registry.register('my-workflow', FakeWorkflow, makeFactory(new FakeWorkflow()));
+      registry.register(
+        'my-workflow',
+        FakeWorkflow,
+        makeFactory(new FakeWorkflow()),
+      );
       expect(() =>
-        registry.register('my-workflow', AnotherWorkflow, makeFactory(new AnotherWorkflow())),
+        registry.register(
+          'my-workflow',
+          AnotherWorkflow,
+          makeFactory(new AnotherWorkflow()),
+        ),
       ).toThrow('already registered with another instance');
     });
 
@@ -52,13 +63,22 @@ describe('WorkflowRegistry', () => {
       const opts: RegisteredWorkflowOptions = {
         job: { attempts: 5 },
       };
-      registry.register('my-workflow', FakeWorkflow, makeFactory(new FakeWorkflow()), opts);
+      registry.register(
+        'my-workflow',
+        FakeWorkflow,
+        makeFactory(new FakeWorkflow()),
+        opts,
+      );
       const def = registry.resolveDefinition('my-workflow');
       expect(def.options).toEqual(opts);
     });
 
     it('defaults options to empty object when not provided', () => {
-      registry.register('my-workflow', FakeWorkflow, makeFactory(new FakeWorkflow()));
+      registry.register(
+        'my-workflow',
+        FakeWorkflow,
+        makeFactory(new FakeWorkflow()),
+      );
       const def = registry.resolveDefinition('my-workflow');
       expect(def.options).toEqual({});
     });
@@ -97,7 +117,7 @@ describe('WorkflowRegistry', () => {
     });
 
     it('throws when factory returns object without run()', () => {
-      registry.register('my-workflow', FakeWorkflow, () => ({} as never));
+      registry.register('my-workflow', FakeWorkflow, () => ({}) as never);
       expect(() => registry.resolve('my-workflow')).toThrow(
         'must expose "run(input)" method',
       );
@@ -110,7 +130,11 @@ describe('WorkflowRegistry', () => {
     });
 
     it('returns definition for registered workflow', () => {
-      registry.register('my-workflow', FakeWorkflow, makeFactory(new FakeWorkflow()));
+      registry.register(
+        'my-workflow',
+        FakeWorkflow,
+        makeFactory(new FakeWorkflow()),
+      );
       expect(registry.resolveOptionalDefinition('my-workflow')).not.toBeNull();
     });
   });

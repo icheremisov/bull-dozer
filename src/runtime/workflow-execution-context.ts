@@ -188,7 +188,11 @@ export class WorkflowExecutionContext {
 
     const expiresAt =
       opts?.timeoutMs !== undefined ? Date.now() + opts.timeoutMs : undefined;
-    await this.stateStore.savePendingSignal(signalName, invocation.key, expiresAt);
+    await this.stateStore.savePendingSignal(
+      signalName,
+      invocation.key,
+      expiresAt,
+    );
     this.exitStep();
     throw new WorkflowSignalWaitRequestedError(signalName, expiresAt);
   }

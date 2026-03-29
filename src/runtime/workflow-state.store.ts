@@ -271,9 +271,8 @@ export class WorkflowStateStore<TInput = unknown> {
     expiresAt?: number,
   ): Promise<void> {
     this.state.ps = this.state.ps ?? {};
-    this.state.ps[signalName] = expiresAt !== undefined
-      ? { k: stepKey, e: expiresAt }
-      : { k: stepKey };
+    this.state.ps[signalName] =
+      expiresAt !== undefined ? { k: stepKey, e: expiresAt } : { k: stepKey };
     return this.flush();
   }
 

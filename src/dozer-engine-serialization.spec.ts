@@ -176,7 +176,10 @@ class DatePayloadWorkflow extends DozerWorkflow<{ id: string; at: Date }> {
 }
 
 @Workflow({ name: 'date-step-result-workflow' })
-class DateStepResultWorkflow extends DozerWorkflow<{ id: string; year: number }> {
+class DateStepResultWorkflow extends DozerWorkflow<{
+  id: string;
+  year: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }
@@ -214,7 +217,9 @@ class DateStepResultWorkflow extends DozerWorkflow<{ id: string; year: number }>
 }
 
 @Workflow({ name: 'simple-serialization-workflow' })
-class SimpleSerializationWorkflow extends DozerWorkflow<Record<string, unknown>> {
+class SimpleSerializationWorkflow extends DozerWorkflow<
+  Record<string, unknown>
+> {
   run(input: Record<string, unknown>): Promise<Record<string, unknown>> {
     return Promise.resolve(input);
   }
@@ -315,7 +320,10 @@ describe('DozerEngine serialization', () => {
   });
 
   it('fails workflow when step result is non-serializable', async () => {
-    const jobId = await engine.start('non-serializable-step-result-workflow', {});
+    const jobId = await engine.start(
+      'non-serializable-step-result-workflow',
+      {},
+    );
 
     await expect(engine.run(jobId)).rejects.toBeInstanceOf(SerializationError);
 

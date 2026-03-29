@@ -11,7 +11,7 @@ import {
   WorkflowCancelledError,
   WORKFLOW_STATUS,
 } from './index';
-import { FailOnceService, RetryWorkflow, sleep } from './test/workflow-test-utils';
+import { FailOnceService, RetryWorkflow } from './test/workflow-test-utils';
 import { DozerWorkflow } from './workflow/dozer-workflow';
 
 type RecoveryPayload = Record<string, unknown>;

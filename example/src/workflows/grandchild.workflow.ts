@@ -6,7 +6,10 @@ const sleep = async (ms: number): Promise<void> => {
 };
 
 @Workflow({ name: 'grandchild-workflow' })
-export class GrandchildWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+export class GrandchildWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failureMemory: FailureMemoryService) {
     super();
   }

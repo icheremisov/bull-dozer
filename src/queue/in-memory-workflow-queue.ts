@@ -49,7 +49,7 @@ export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
     return Promise.resolve((job as WorkflowJob<TInput> | undefined) ?? null);
   }
 
-  moveToDelayed(jobId: string, timestamp: number, _token?: string): Promise<void> {
+  moveToDelayed(jobId: string, timestamp: number): Promise<void> {
     if (this.jobs.has(jobId)) {
       this.delayedJobs.set(jobId, timestamp);
     }

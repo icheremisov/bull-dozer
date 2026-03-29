@@ -10,9 +10,12 @@ import {
   TimeoutError,
   Workflow,
   WORKFLOW_STATUS,
-  WorkflowJobOptions,
 } from './index';
-import { FailOnceService, RetryWorkflow, sleep } from './test/workflow-test-utils';
+import {
+  FailOnceService,
+  RetryWorkflow,
+  sleep,
+} from './test/workflow-test-utils';
 import { DozerWorkflow } from './workflow/dozer-workflow';
 
 @Injectable()
@@ -28,7 +31,10 @@ class WorkflowAutoResumeStats {
 }
 
 @Workflow({ name: 'non-retryable-step-workflow' })
-class NonRetryableStepWorkflow extends DozerWorkflow<{ id: string; amount: number }> {
+class NonRetryableStepWorkflow extends DozerWorkflow<{
+  id: string;
+  amount: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }
@@ -97,7 +103,10 @@ class TimeoutCompensationWorkflow extends DozerWorkflow<unknown> {
     },
   },
 })
-class WorkflowAutoResumeWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class WorkflowAutoResumeWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(
     private readonly failOnce: FailOnceService,
     private readonly stats: WorkflowAutoResumeStats,
@@ -138,7 +147,10 @@ class WorkflowAutoResumeWorkflow extends DozerWorkflow<{ id: string; value: numb
     },
   },
 })
-class WorkflowRetryLinearWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class WorkflowRetryLinearWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }
@@ -160,7 +172,10 @@ class WorkflowRetryLinearWorkflow extends DozerWorkflow<{ id: string; value: num
     },
   },
 })
-class WorkflowDefaultRetryWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class WorkflowDefaultRetryWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }
@@ -180,7 +195,10 @@ class WorkflowDefaultRetryWorkflow extends DozerWorkflow<{ id: string; value: nu
 }
 
 @Workflow({ name: 'retry-restarts-whole-flow-workflow' })
-class RetryRestartsWholeFlowWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class RetryRestartsWholeFlowWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   private localCounter = 0;
 
   constructor(private readonly failOnce: FailOnceService) {
@@ -208,7 +226,10 @@ class RetryRestartsWholeFlowWorkflow extends DozerWorkflow<{ id: string; value: 
 }
 
 @Workflow({ name: 'global-default-retry-workflow' })
-class GlobalDefaultRetryWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class GlobalDefaultRetryWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }
@@ -228,7 +249,10 @@ class GlobalDefaultRetryWorkflow extends DozerWorkflow<{ id: string; value: numb
 }
 
 @Workflow({ name: 'global-default-retry-override-workflow' })
-class GlobalDefaultRetryOverrideWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class GlobalDefaultRetryOverrideWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }
@@ -266,7 +290,10 @@ class JobOptionsWorkflow extends DozerWorkflow<{ value: number }> {
 }
 
 @Workflow({ name: 'global-workflow-retry-workflow' })
-class GlobalWorkflowRetryWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class GlobalWorkflowRetryWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }
@@ -288,7 +315,10 @@ class GlobalWorkflowRetryWorkflow extends DozerWorkflow<{ id: string; value: num
     },
   },
 })
-class GlobalWorkflowRetryOverrideWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class GlobalWorkflowRetryOverrideWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failOnce: FailOnceService) {
     super();
   }

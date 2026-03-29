@@ -6,8 +6,9 @@ import { DozerWorkflow } from '../workflow/dozer-workflow';
 describe('@Workflow validation', () => {
   it('throws when class does not extend DozerWorkflow', () => {
     expect(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
       const { Workflow } = require('./workflow.decorator');
-
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       @Workflow({ name: 'bad-workflow' })
       class BadWorkflow {
         run(): Promise<void> {
@@ -20,8 +21,9 @@ describe('@Workflow validation', () => {
 
   it('throws when a method has neither @Step nor @NoStep', () => {
     expect(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
       const { Workflow } = require('./workflow.decorator');
-
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       @Workflow({ name: 'unannotated-workflow' })
       class UnannotatedWorkflow extends DozerWorkflow<unknown> {
         @Step({ name: 'step-one' })
@@ -41,8 +43,9 @@ describe('@Workflow validation', () => {
 
   it('passes when all non-run methods have @Step or @NoStep', () => {
     expect(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
       const { Workflow } = require('./workflow.decorator');
-
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       @Workflow({ name: 'valid-workflow' })
       class ValidWorkflow extends DozerWorkflow<unknown> {
         @Step({ name: 'step-one' })

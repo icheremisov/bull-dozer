@@ -15,8 +15,13 @@ const makeJob = (): WorkflowJob<unknown> => {
   return {
     id: 'test-job',
     name: 'test',
-    get data() { return data; },
-    updateData: async (next: WorkflowJobData<unknown>) => { data = next; },
+    get data() {
+      return data;
+    },
+    updateData: (next: WorkflowJobData<unknown>): Promise<void> => {
+      data = next;
+      return Promise.resolve();
+    },
   };
 };
 
@@ -26,7 +31,10 @@ describe('WorkflowStateStore signal methods', () => {
     const store = new WorkflowStateStore(job);
     await store.savePendingSignal('payment', '0.1:__signal__:payment', 9999999);
     const ps = job.data[DOZER_JOB_STATE_KEY]?.ps;
-    expect(ps?.['payment']).toEqual({ k: '0.1:__signal__:payment', e: 9999999 });
+    expect(ps?.['payment']).toEqual({
+      k: '0.1:__signal__:payment',
+      e: 9999999,
+    });
   });
 
   it('savePendingSignal without expiresAt omits e field', async () => {
@@ -41,7 +49,10 @@ describe('WorkflowStateStore signal methods', () => {
     const job = makeJob();
     const store = new WorkflowStateStore(job);
     await store.savePendingSignal('payment', '0.1:__signal__:payment', 1000);
-    expect(store.getPendingSignal('payment')).toEqual({ stepKey: '0.1:__signal__:payment', expiresAt: 1000 });
+    expect(store.getPendingSignal('payment')).toEqual({
+      stepKey: '0.1:__signal__:payment',
+      expiresAt: 1000,
+    });
   });
 
   it('getPendingSignal returns undefined for unknown signal', () => {

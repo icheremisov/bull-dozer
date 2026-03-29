@@ -72,17 +72,21 @@ export class BullMQWorkflowQueue implements WorkflowQueueDriver {
     );
   }
 
-  async moveToDelayed(jobId: string, timestamp: number, token?: string): Promise<void> {
+  async moveToDelayed(
+    jobId: string,
+    timestamp: number,
+    token?: string,
+  ): Promise<void> {
     const job = await this.queue.getJob(jobId);
     if (!job) return;
-    const bullmqJob = job as BullMQJobLike<unknown>;
+    const bullmqJob = job;
     await bullmqJob.moveToDelayed?.(timestamp, token);
   }
 
   async promoteDelayed(jobId: string): Promise<void> {
     const job = await this.queue.getJob(jobId);
     if (!job) return;
-    const bullmqJob = job as BullMQJobLike<unknown>;
+    const bullmqJob = job;
     await bullmqJob.promote?.();
   }
 }

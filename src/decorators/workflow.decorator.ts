@@ -29,39 +29,38 @@ export interface WorkflowOptions {
   resultQueue?: WorkflowResultQueueOptions;
 }
 
+type WorkflowConstructorLike = {
+  prototype: Record<string, unknown>;
+  name: string;
+};
+
 const EXEMPT_METHODS = new Set(['constructor', 'run']);
 
 const validateWorkflowClass = (target: object): void => {
-  if (
-    !(target as Function).prototype ||
-    !((target as Function).prototype instanceof DozerWorkflow)
-  ) {
-    throw new Error(
-      `Workflow "${(target as Function).name}" must extend DozerWorkflow.`,
-    );
+  const cls = target as WorkflowConstructorLike;
+  if (!cls.prototype || !(cls.prototype instanceof DozerWorkflow)) {
+    throw new Error(`Workflow "${cls.name}" must extend DozerWorkflow.`);
   }
 
-  const methodNames = Object.getOwnPropertyNames(
-    (target as Function).prototype,
-  ).filter((name) => !EXEMPT_METHODS.has(name));
+  const methodNames = Object.getOwnPropertyNames(cls.prototype).filter(
+    (name) => !EXEMPT_METHODS.has(name),
+  );
 
   for (const name of methodNames) {
-    const descriptor = Object.getOwnPropertyDescriptor(
-      (target as Function).prototype,
-      name,
-    );
+    const descriptor = Object.getOwnPropertyDescriptor(cls.prototype, name);
     if (!descriptor || typeof descriptor.value !== 'function') {
       continue;
     }
 
     const hasStep =
-      Reflect.getMetadata(STEP_OPTIONS_METADATA, descriptor.value) !== undefined;
+      Reflect.getMetadata(STEP_OPTIONS_METADATA, descriptor.value) !==
+      undefined;
     const hasNoStep =
       Reflect.getMetadata(NOSTEP_METADATA, descriptor.value) === true;
 
     if (!hasStep && !hasNoStep) {
       throw new Error(
-        `Workflow "${(target as Function).name}" method "${name}" must be decorated with @Step() or @NoStep().`,
+        `Workflow "${cls.name}" method "${name}" must be decorated with @Step() or @NoStep().`,
       );
     }
   }

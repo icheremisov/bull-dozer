@@ -80,11 +80,13 @@ export class CapturingResultQueue implements BullMQQueueLike<
     });
   }
 
-  getJob(_jobId?: string): Promise<{
+  getJob(): Promise<{
     id: string | number;
     name: string;
     data: WorkflowResultQueueJobData<unknown>;
-    updateData: (nextData: WorkflowResultQueueJobData<unknown>) => Promise<void>;
+    updateData: (
+      nextData: WorkflowResultQueueJobData<unknown>,
+    ) => Promise<void>;
   } | null> {
     return Promise.resolve(null);
   }

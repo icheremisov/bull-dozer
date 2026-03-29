@@ -388,15 +388,14 @@ export class DozerEngine {
       ?.onFailed;
     if (typeof onFailed === 'function') {
       const timeoutMs =
-        this.moduleOptions.defaults?.onFailedTimeoutMs ?? DEFAULT_ON_FAILED_TIMEOUT_MS;
+        this.moduleOptions.defaults?.onFailedTimeoutMs ??
+        DEFAULT_ON_FAILED_TIMEOUT_MS;
       try {
-        const promise = OnFailedContextStorage.run(() =>
-          (onFailed as (e: Error, i: unknown, id: string) => Promise<void>).call(
-            workflow,
-            error,
-            input,
-            job.id,
-          ),
+        const promise: Promise<void> = OnFailedContextStorage.run(
+          () =>
+            (
+              onFailed as (e: Error, i: unknown, id: string) => Promise<void>
+            ).call(workflow, error, input, job.id) as Promise<void>,
         );
         if (timeoutMs > 0) {
           await withOnFailedTimeout(promise, timeoutMs);
@@ -433,7 +432,9 @@ export class DozerEngine {
   }
 
   private resolveDefaultSignalTimeoutMs(): number {
-    return this.moduleOptions.defaults?.signalTimeoutMs ?? 7 * 24 * 60 * 60 * 1000;
+    return (
+      this.moduleOptions.defaults?.signalTimeoutMs ?? 7 * 24 * 60 * 60 * 1000
+    );
   }
 
   async run(jobId: string, token?: string): Promise<unknown> {
@@ -523,7 +524,8 @@ export class DozerEngine {
 
         if (error instanceof WorkflowSignalWaitRequestedError) {
           const deadline =
-            error.expiresAt ?? Date.now() + this.resolveDefaultSignalTimeoutMs();
+            error.expiresAt ??
+            Date.now() + this.resolveDefaultSignalTimeoutMs();
           await this.queue.moveToDelayed(jobId, deadline, token);
           throw new DelayedError();
         }

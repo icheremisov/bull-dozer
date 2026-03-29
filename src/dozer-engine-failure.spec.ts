@@ -29,16 +29,12 @@ class OnFailedWorkflow extends DozerWorkflow<{ value: number }> {
     throw new Error('step-on-failed-error');
   }
 
-  async run(input: { value: number }): Promise<void> {
+  async run(): Promise<void> {
     await this.failStep();
   }
 
   @NoStep()
-  async onFailed(
-    error: Error,
-    input: { value: number },
-    jobId: string,
-  ): Promise<void> {
+  onFailed(error: Error, input: { value: number }, jobId: string): void {
     if (this.spy.throwOnCall) {
       throw new Error('on-failed-handler-threw');
     }
@@ -62,7 +58,7 @@ class OnFailedNonRetryableWorkflow extends DozerWorkflow<unknown> {
   }
 
   @NoStep()
-  async onFailed(error: Error, input: unknown, jobId: string): Promise<void> {
+  onFailed(error: Error, input: unknown, jobId: string): void {
     this.spy.calls.push({ error, input, jobId });
   }
 }
@@ -116,7 +112,7 @@ class FailurePublishWorkflow extends DozerWorkflow<{ value: number }> {
     throw new Error('failure-publish-error');
   }
 
-  async run(input: { value: number }): Promise<void> {
+  async run(): Promise<void> {
     await this.fail();
   }
 }
@@ -195,8 +191,8 @@ class OnFailedCallsStepWorkflow extends DozerWorkflow<unknown> {
   }
 
   @NoStep()
-  async onFailed(): Promise<void> {
-    await this.regularStep();
+  onFailed(): void {
+    this.regularStep();
   }
 }
 
@@ -282,10 +278,7 @@ describe('DozerEngine failure handling', () => {
     const localModule = await Test.createTestingModule({
       imports: [
         DozerModule.forRoot({ driver: localQueue }),
-        DozerModule.forFeature(
-          [OnFailedNonRetryableWorkflow],
-          [OnFailedSpy],
-        ),
+        DozerModule.forFeature([OnFailedNonRetryableWorkflow], [OnFailedSpy]),
       ],
     }).compile();
     await localModule.init();
@@ -522,7 +515,9 @@ describe('DozerEngine failure handling', () => {
 
       const jobId = await localEngine.start('on-failed-workflow', { value: 1 });
 
-      await expect(localEngine.run(jobId)).rejects.toThrow('step-on-failed-error');
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'step-on-failed-error',
+      );
 
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining('on-failed-handler-threw'),
@@ -558,7 +553,9 @@ describe('DozerEngine failure handling', () => {
 
       const jobId = await localEngine.start('on-failed-hang-workflow', {});
 
-      await expect(localEngine.run(jobId)).rejects.toThrow('hang-workflow-error');
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'hang-workflow-error',
+      );
 
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining('timed out after 50ms'),
@@ -588,9 +585,14 @@ describe('DozerEngine failure handling', () => {
       const localEngine = localModule.get(DozerEngine);
       const spy = localModule.get(OnFailedStepSpy);
 
-      const jobId = await localEngine.start('on-failed-calls-step-workflow', {});
+      const jobId = await localEngine.start(
+        'on-failed-calls-step-workflow',
+        {},
+      );
 
-      await expect(localEngine.run(jobId)).rejects.toThrow('calls-step-workflow-error');
+      await expect(localEngine.run(jobId)).rejects.toThrow(
+        'calls-step-workflow-error',
+      );
 
       expect(spy.sideEffect).toBe(true);
       expect(warnSpy).toHaveBeenCalledWith(
@@ -615,10 +617,7 @@ describe('DozerEngine failure handling', () => {
 
     try {
       const localEngine = localModule.get(DozerEngine);
-      const jobId = await localEngine.start(
-        'failure-no-publish-workflow',
-        {},
-      );
+      const jobId = await localEngine.start('failure-no-publish-workflow', {});
 
       await expect(localEngine.run(jobId)).rejects.toThrow(
         'no-publish-failure-error',

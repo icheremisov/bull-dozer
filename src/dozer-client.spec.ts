@@ -225,10 +225,12 @@ describe('DozerClient module', () => {
       await localModule.init();
       const client = localModule.get(DozerClient);
 
-      const jobId = await queue.add('any-workflow', {
-        __dozer_input__: {},
-        __dozer_state__: { s: WORKFLOW_STATUS.running, c: {}, t: [] },
-      }).then((j) => j.id);
+      const jobId = await queue
+        .add('any-workflow', {
+          __dozer_input__: {},
+          __dozer_state__: { s: WORKFLOW_STATUS.running, c: {}, t: [] },
+        })
+        .then((j) => j.id);
 
       const result = await client.sendSignal(jobId, 'payment', { amount: 100 });
       expect(result).toBe(false);
@@ -259,15 +261,17 @@ describe('DozerClient module', () => {
       await localModule.init();
       const client = localModule.get(DozerClient);
 
-      const jobId = await queue.add('any-workflow', {
-        [DOZER_JOB_INPUT_KEY]: {},
-        [DOZER_JOB_STATE_KEY]: {
-          s: WORKFLOW_STATUS.running,
-          c: {},
-          t: ['0:__signal__:event'],
-          ps: { event: { k: '0:__signal__:event' } },
-        },
-      }).then((j) => j.id);
+      const jobId = await queue
+        .add('any-workflow', {
+          [DOZER_JOB_INPUT_KEY]: {},
+          [DOZER_JOB_STATE_KEY]: {
+            s: WORKFLOW_STATUS.running,
+            c: {},
+            t: ['0:__signal__:event'],
+            ps: { event: { k: '0:__signal__:event' } },
+          },
+        })
+        .then((j) => j.id);
 
       const result = await client.sendSignal(jobId, 'event');
       expect(result).toBe(true);

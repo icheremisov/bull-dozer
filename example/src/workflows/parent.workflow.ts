@@ -8,7 +8,10 @@ interface ChildResult {
 }
 
 @Workflow({ name: 'parent-workflow' })
-export class ParentWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+export class ParentWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(
     private readonly engine: DozerEngine,
     private readonly join: WorkflowJoinService,

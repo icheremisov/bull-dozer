@@ -47,7 +47,10 @@ class FailOnceServiceLocal {
 }
 
 @Workflow({ name: 'nondeterministic-workflow' })
-class NonDeterministicWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class NonDeterministicWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(
     private readonly branch: BranchService,
     private readonly failOnce: FailOnceServiceLocal,
@@ -86,7 +89,10 @@ class NonDeterministicWorkflow extends DozerWorkflow<{ id: string; value: number
 }
 
 @Workflow({ name: 'nested-replay-workflow' })
-class NestedReplayWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+class NestedReplayWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(
     private readonly stats: NestedReplayStats,
     private readonly failOnce: FailOnceServiceLocal,
@@ -199,7 +205,12 @@ describe('DozerEngine determinism', () => {
             DeterminismProbeSlowWorkflow,
             GlobalDeterminismProbeRandomWorkflow,
           ],
-          [NestedReplayStats, DeterminismProbeStats, BranchService, FailOnceServiceLocal],
+          [
+            NestedReplayStats,
+            DeterminismProbeStats,
+            BranchService,
+            FailOnceServiceLocal,
+          ],
         ),
       ],
     }).compile();

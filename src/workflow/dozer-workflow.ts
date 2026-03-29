@@ -1,10 +1,10 @@
-import { WorkflowExecutionContext, WorkflowExecutionContextStorage } from '../runtime/workflow-execution-context';
+import { WorkflowExecutionContextStorage } from '../runtime/workflow-execution-context';
 
 export abstract class DozerWorkflow<TInput = unknown> {
   abstract run(input: TInput): Promise<unknown>;
 
   protected async sleep(durationMs: number): Promise<void> {
-    const context = WorkflowExecutionContextStorage.get() as WorkflowExecutionContext | undefined;
+    const context = WorkflowExecutionContextStorage.get();
     if (!context) {
       await new Promise<void>((resolve) => setTimeout(resolve, durationMs));
       return;
@@ -20,9 +20,11 @@ export abstract class DozerWorkflow<TInput = unknown> {
     signalName: string,
     opts?: { timeoutMs?: number },
   ): Promise<T | null> {
-    const context = WorkflowExecutionContextStorage.get() as WorkflowExecutionContext | undefined;
+    const context = WorkflowExecutionContextStorage.get();
     if (!context) {
-      throw new Error('waitForSignal() must be called within a workflow context');
+      throw new Error(
+        'waitForSignal() must be called within a workflow context',
+      );
     }
     return context.waitForSignal(signalName, opts);
   }

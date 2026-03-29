@@ -1,9 +1,14 @@
 import { DOZER_JOB_INPUT_KEY, DOZER_JOB_STATE_KEY } from '../constants';
-import type { CompactWorkflowState, WorkflowJob } from '../queue/workflow-queue';
+import type {
+  CompactWorkflowState,
+  WorkflowJob,
+} from '../queue/workflow-queue';
 import { WORKFLOW_STATUS } from '../queue/workflow-queue';
 import { getWorkflowJobInfo } from './workflow-job-info';
 
-const makeJob = (state: CompactWorkflowState | undefined): WorkflowJob<unknown> => ({
+const makeJob = (
+  state: CompactWorkflowState | undefined,
+): WorkflowJob<unknown> => ({
   id: 'job-1',
   name: 'my-workflow',
   data: {
@@ -13,7 +18,9 @@ const makeJob = (state: CompactWorkflowState | undefined): WorkflowJob<unknown> 
   updateData: async () => {},
 });
 
-const validState = (overrides: Partial<CompactWorkflowState> = {}): CompactWorkflowState => ({
+const validState = (
+  overrides: Partial<CompactWorkflowState> = {},
+): CompactWorkflowState => ({
   s: WORKFLOW_STATUS.pending,
   c: {},
   t: [],
@@ -74,7 +81,9 @@ describe('getWorkflowJobInfo', () => {
         WORKFLOW_STATUS.failed,
         WORKFLOW_STATUS.cancelled,
       ] as const) {
-        const info = getWorkflowJobInfo(makeJob(validState({ s, r: 'ignored' })));
+        const info = getWorkflowJobInfo(
+          makeJob(validState({ s, r: 'ignored' })),
+        );
         expect(info.result).toBeUndefined();
       }
     });
@@ -109,7 +118,9 @@ describe('getWorkflowJobInfo', () => {
         WORKFLOW_STATUS.completed,
         WORKFLOW_STATUS.completing,
       ] as const) {
-        const info = getWorkflowJobInfo(makeJob(validState({ s, e: 'ignored' })));
+        const info = getWorkflowJobInfo(
+          makeJob(validState({ s, e: 'ignored' })),
+        );
         expect(info.error).toBeUndefined();
       }
     });
@@ -123,7 +134,9 @@ describe('getWorkflowJobInfo', () => {
 
     it('is present when status is cancelled and e is set', () => {
       const info = getWorkflowJobInfo(
-        makeJob(validState({ s: WORKFLOW_STATUS.cancelled, e: 'cancelled reason' })),
+        makeJob(
+          validState({ s: WORKFLOW_STATUS.cancelled, e: 'cancelled reason' }),
+        ),
       );
       expect(info.error).toBe('cancelled reason');
     });

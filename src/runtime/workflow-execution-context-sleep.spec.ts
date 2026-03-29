@@ -6,13 +6,20 @@ import { WorkflowStateStore } from './workflow-state.store';
 import { WorkflowSleepRequestedError } from '../errors/workflow-sleep-requested.error';
 import { WorkflowSignalWaitRequestedError } from '../errors/workflow-signal-wait-requested.error';
 
-const makeJob = (overrides?: Partial<{
-  s: number; c: Record<string, unknown>; a?: Record<string, number>;
-  u?: Record<string, 1>; t: string[]; sl?: Record<string, number>;
-  ps?: Record<string, { k: string; e?: number }>;
-}>): WorkflowJob<unknown> => {
+const makeJob = (
+  overrides?: Partial<{
+    s: number;
+    c: Record<string, unknown>;
+    a?: Record<string, number>;
+    u?: Record<string, 1>;
+    t: string[];
+    sl?: Record<string, number>;
+    ps?: Record<string, { k: string; e?: number }>;
+  }>,
+): WorkflowJob<unknown> => {
   let data: WorkflowJobData<unknown> = {
     [DOZER_JOB_INPUT_KEY]: {},
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     [DOZER_JOB_STATE_KEY]: {
       s: WORKFLOW_STATUS.running,
       c: {},
@@ -23,8 +30,13 @@ const makeJob = (overrides?: Partial<{
   return {
     id: 'test-job',
     name: 'test',
-    get data() { return data; },
-    updateData: async (next: WorkflowJobData<unknown>) => { data = next; },
+    get data() {
+      return data;
+    },
+    updateData: (next: WorkflowJobData<unknown>): Promise<void> => {
+      data = next;
+      return Promise.resolve();
+    },
   };
 };
 
@@ -33,7 +45,9 @@ describe('WorkflowExecutionContext.sleep()', () => {
     const job = makeJob();
     const store = new WorkflowStateStore(job);
     const ctx = new WorkflowExecutionContext(store);
-    await expect(ctx.sleep(5000)).rejects.toBeInstanceOf(WorkflowSleepRequestedError);
+    await expect(ctx.sleep(5000)).rejects.toBeInstanceOf(
+      WorkflowSleepRequestedError,
+    );
   });
 
   it('sets wakeUpAt approximately to now + durationMs', async () => {
@@ -55,7 +69,11 @@ describe('WorkflowExecutionContext.sleep()', () => {
     const job = makeJob();
     const store = new WorkflowStateStore(job);
     const ctx = new WorkflowExecutionContext(store);
-    try { await ctx.sleep(1000); } catch {}
+    try {
+      await ctx.sleep(1000);
+    } catch {
+      // intentionally empty
+    }
     expect(job.data[DOZER_JOB_STATE_KEY]?.sl).toBeDefined();
   });
 

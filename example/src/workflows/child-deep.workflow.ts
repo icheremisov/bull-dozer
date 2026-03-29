@@ -7,7 +7,10 @@ const sleep = async (ms: number): Promise<void> => {
 };
 
 @Workflow({ name: 'child-deep-workflow' })
-export class ChildDeepWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+export class ChildDeepWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(
     private readonly engine: DozerEngine,
     private readonly join: WorkflowJoinService,

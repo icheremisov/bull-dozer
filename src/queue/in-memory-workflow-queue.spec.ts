@@ -34,7 +34,9 @@ describe('InMemoryWorkflowQueue delayed jobs', () => {
 
   it('moveToDelayed is a no-op for unknown jobId', async () => {
     const queue = new InMemoryWorkflowQueue();
-    await expect(queue.moveToDelayed('unknown', Date.now() + 1000)).resolves.toBeUndefined();
+    await expect(
+      queue.moveToDelayed('unknown', Date.now() + 1000),
+    ).resolves.toBeUndefined();
   });
 
   it('promoteDelayed is a no-op for unknown jobId', async () => {

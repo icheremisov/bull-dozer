@@ -108,9 +108,8 @@ describe('Advanced workflows integration', () => {
     await app.init();
 
     queue = app.get<Queue<WorkflowJobData<unknown>>>(EXAMPLE_WORKFLOW_QUEUE);
-    resultQueue = app.get<Queue<WorkflowResultQueueJobData<unknown>>>(
-      EXAMPLE_RESULT_QUEUE,
-    );
+    resultQueue =
+      app.get<Queue<WorkflowResultQueueJobData<unknown>>>(EXAMPLE_RESULT_QUEUE);
     failureMemory = app.get(FailureMemoryService);
     controls = app.get(ScenarioControlsService);
     thisStateWorkflow = app.get(ThisStateWorkflow);

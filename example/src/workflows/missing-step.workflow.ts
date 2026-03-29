@@ -2,7 +2,10 @@ import { DozerWorkflow, NoStep, Step, Workflow } from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'missing-step' })
-export class MissingStepWorkflow extends DozerWorkflow<{ id: string; value: number }> {
+export class MissingStepWorkflow extends DozerWorkflow<{
+  id: string;
+  value: number;
+}> {
   constructor(private readonly failureMemory: FailureMemoryService) {
     super();
   }

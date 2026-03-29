@@ -15,8 +15,13 @@ const makeJob = (): WorkflowJob<unknown> => {
   return {
     id: 'test-job',
     name: 'test',
-    get data() { return data; },
-    updateData: async (next: WorkflowJobData<unknown>) => { data = next; },
+    get data() {
+      return data;
+    },
+    updateData: (next: WorkflowJobData<unknown>): Promise<void> => {
+      data = next;
+      return Promise.resolve();
+    },
   };
 };
 

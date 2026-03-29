@@ -9,7 +9,10 @@ import { DozerWorkflow, Workflow } from 'dozer';
     },
   },
 })
-export class ResultQueueTypedWorkflow extends DozerWorkflow<{ id: string; seed: number }> {
+export class ResultQueueTypedWorkflow extends DozerWorkflow<{
+  id: string;
+  seed: number;
+}> {
   run(input: { id: string; seed: number }): Promise<{
     id: string;
     seed: number;

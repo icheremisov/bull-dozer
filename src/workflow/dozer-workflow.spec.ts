@@ -2,8 +2,8 @@ import { WorkflowExecutionContextStorage } from '../runtime/workflow-execution-c
 import { DozerWorkflow } from './dozer-workflow';
 
 class ConcreteWorkflow extends DozerWorkflow<{ value: number }> {
-  async run(input: { value: number }): Promise<number> {
-    return input.value;
+  run(input: { value: number }): Promise<number> {
+    return Promise.resolve(input.value);
   }
 
   async exposeSleep(ms: number): Promise<void> {
@@ -59,7 +59,7 @@ describe('DozerWorkflow', () => {
       workflow.exposeSleepUntil(futureTs),
     );
 
-    const calledMs = mockContext.sleep.mock.calls[0][0] as number;
+    const calledMs = (mockContext.sleep.mock.calls[0] as [number])[0];
     expect(calledMs).toBeGreaterThan(4000);
     expect(calledMs).toBeLessThanOrEqual(5000);
   });

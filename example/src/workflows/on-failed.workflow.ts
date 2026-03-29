@@ -1,4 +1,11 @@
-import { DozerWorkflow, NonRetryableError, NoStep, Step, Workflow, WorkflowWithFailureHandler } from 'dozer';
+import {
+  DozerWorkflow,
+  NonRetryableError,
+  NoStep,
+  Step,
+  Workflow,
+  WorkflowWithFailureHandler,
+} from 'dozer';
 import { FailureMemoryService } from '../support/failure-memory.service';
 
 @Workflow({ name: 'on-failed' })
@@ -20,11 +27,7 @@ export class OnFailedWorkflow
   }
 
   @NoStep()
-  async onFailed(
-    _error: Error,
-    input: { id: string },
-    _jobId: string,
-  ): Promise<void> {
+  onFailed(_error: Error, input: { id: string }): void {
     this.failureMemory.markAndShouldFail(`on-failed:callback:${input.id}`, 0);
   }
 }
