@@ -525,7 +525,7 @@ export class DozerEngine {
             asThrownError(error),
           );
         }
-        throw error;
+        throw asThrownError(error);
       }
     }
   }

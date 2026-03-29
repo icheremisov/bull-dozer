@@ -380,6 +380,66 @@ describe('DozerEngine failure handling', () => {
     }
   });
 
+  it('wraps non-Error throw (string) into Error and propagates it', async () => {
+    @Workflow({ name: 'throw-string-workflow' })
+    class ThrowStringWorkflow extends DozerWorkflow<unknown> {
+      @Step({ name: 'throw-string' })
+      throwString(): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 'plain string error';
+      }
+
+      async run(): Promise<void> {
+        await this.throwString();
+      }
+    }
+
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature([ThrowStringWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    const localEngine = localModule.get(DozerEngine);
+    const jobId = await localEngine.start('throw-string-workflow', {});
+    await expect(localEngine.run(jobId)).rejects.toThrow('plain string error');
+
+    await localModule.close();
+  });
+
+  it('wraps non-Error throw (number) into Error and propagates it', async () => {
+    @Workflow({ name: 'throw-number-workflow' })
+    class ThrowNumberWorkflow extends DozerWorkflow<unknown> {
+      @Step({ name: 'throw-number' })
+      throwNumber(): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 404;
+      }
+
+      async run(): Promise<void> {
+        await this.throwNumber();
+      }
+    }
+
+    const localQueue = new InMemoryWorkflowQueue();
+    const localModule = await Test.createTestingModule({
+      imports: [
+        DozerModule.forRoot({ driver: localQueue }),
+        DozerModule.forFeature([ThrowNumberWorkflow]),
+      ],
+    }).compile();
+    await localModule.init();
+
+    const localEngine = localModule.get(DozerEngine);
+    const jobId = await localEngine.start('throw-number-workflow', {});
+    await expect(localEngine.run(jobId)).rejects.toThrow('404');
+
+    await localModule.close();
+  });
+
   it('does not publish to result queue on failure when publishOnFailure is false', async () => {
     const localQueue = new InMemoryWorkflowQueue();
     const resultQueue = new CapturingResultQueue();
