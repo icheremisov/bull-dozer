@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] — 2026-03-30
+
+### Added
+
+- **`DozerWorkflow` job runtime methods** — workflows can now interact with the underlying BullMQ job directly via protected methods on the base class:
+  - `log(row)` — appends a row to the BullMQ job log (visible in Bull Board / BullMQ UI). Returns the total log count after append.
+  - `clearLogs(keepLast?)` — clears all job log entries, or retains the most recent `keepLast` entries.
+  - `updateProgress(progress)` — sets job progress (number 0–100 or an arbitrary object for structured progress).
+  - `changePriority({ priority?, lifo? })` — changes the job's queue priority at runtime.
+  - `priority` getter — current job priority (as set when created or last changed).
+  - `progress` getter — current job progress value.
+- **`_setJobContext(job)`** — called by the engine before every `run()` invocation (including replays) to bind the live BullMQ job to the workflow instance. Not intended for use in workflow code.
+- **`WorkflowQueueDriver.getJobLogs(jobId)`** — queue-level log retrieval added to the driver interface, returning `{ logs: string[]; count: number }`. Implemented in both `BullMQWorkflowQueue` (delegates to `queue.getJobLogs`) and `InMemoryWorkflowQueue` (in-memory accumulation).
+- **`keepLogs` enforcement in `InMemoryWorkflowJob`** — `InMemoryWorkflowJob.log()` now trims the in-memory log array to the last `keepLogs` entries (when `keepLogs > 0`), matching BullMQ's Redis-side Lua trim semantics. `keepLogs: 0` or `undefined` means unlimited.
+
+### Tests
+
+- `DozerEngine` job-methods unit tests (`dozer-engine-job-methods.spec.ts`) — 16 tests covering `log`, `clearLogs`, `updateProgress`, `changePriority`, and `keepLogs` option enforcement across five workflow fixtures.
+- `DozerEngine` concurrency unit tests (`dozer-engine-concurrency.spec.ts`) — 2 tests: 10 parallel jobs with no `_job` cross-contamination, and `breakUntil` re-instantiation preserving `_job` context on resume.
+- Integration tests (real BullMQ + Redis, `example/test/job-methods.integration.spec.ts`) — 5 tests against a live Redis queue: `log()` entries visible via `queue.getJobLogs()`, `updateProgress()` final value is 100, `clearLogs()` wipes earlier entries mid-run, `changePriority()` reflected on the completed job, `getJobLogs()` returns empty for unknown job ID.
+- Parallel isolation integration tests (`example/test/parallel-isolation.integration.spec.ts`) — 3 tests verifying that 10–20 concurrently running workflows with different coefficients, deliberate failures (retry), and sleep/resume produce mathematically correct independent results with no cross-job context leakage: isolated step cache, isolated logs, no ID mixing.
+- Example workflows `job-runtime` and `parallel-stress` added to the example project as test fixtures.
+
+---
+
 ## [0.7.3] — 2026-03-30
 
 ### Added
