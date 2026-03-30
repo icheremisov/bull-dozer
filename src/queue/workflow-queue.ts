@@ -120,10 +120,7 @@ export interface BullMQJobLike<TData> {
   promote?(): Promise<void>;
   log?(row: string): Promise<number>;
   clearLogs?(keepLast?: number): Promise<void>;
-  changePriority?(opts: {
-    priority?: number;
-    lifo?: boolean;
-  }): Promise<void>;
+  changePriority?(opts: { priority?: number; lifo?: boolean }): Promise<void>;
   updateProgress?(progress: number | object): Promise<void>;
 }
 

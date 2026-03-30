@@ -117,9 +117,7 @@ export class BullMQWorkflowQueue implements WorkflowQueueDriver {
     await bullmqJob.promote?.();
   }
 
-  async getJobLogs(
-    jobId: string,
-  ): Promise<{ logs: string[]; count: number }> {
+  async getJobLogs(jobId: string): Promise<{ logs: string[]; count: number }> {
     return (await this.queue.getJobLogs?.(jobId)) ?? { logs: [], count: 0 };
   }
 }

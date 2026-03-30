@@ -49,6 +49,8 @@ import { VersionedLogicWorkflow } from './workflows/versioned-logic.workflow';
 import { SleepWorkflow } from './workflows/sleep.workflow';
 import { SignalWorkflow } from './workflows/signal.workflow';
 import { PollingWorkflow } from './workflows/polling.workflow';
+import { JobRuntimeWorkflow } from './workflows/job-runtime.workflow';
+import { ParallelStressWorkflow } from './workflows/parallel-stress.workflow';
 
 @Module({
   imports: [
@@ -103,6 +105,8 @@ import { PollingWorkflow } from './workflows/polling.workflow';
         SleepWorkflow,
         SignalWorkflow,
         PollingWorkflow,
+        JobRuntimeWorkflow,
+        ParallelStressWorkflow,
       ],
       [
         FailureMemoryService,

@@ -40,6 +40,7 @@ import {
   RegisteredWorkflow,
   WorkflowRegistry,
 } from '../workflow/workflow-registry';
+import { DozerWorkflow } from '../workflow/dozer-workflow';
 import { resolveRetryDelayMs } from '../runtime/retry-policy';
 import { WorkflowRetryRequestedError } from '../runtime/workflow-retry-requested.error';
 
@@ -489,6 +490,9 @@ export class DozerEngine {
         });
         await stateStore.markRunning();
         const workflow = this.registry.instantiate(definition);
+        if (workflow instanceof DozerWorkflow) {
+          workflow._setJobContext(job);
+        }
         lastWorkflow = workflow;
         const input = deserializeFromStorage(job.data[DOZER_JOB_INPUT_KEY]);
         lastInput = input;

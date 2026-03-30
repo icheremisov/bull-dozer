@@ -29,7 +29,11 @@ class InMemoryWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
   log(row: string): Promise<number> {
     this._logs.push(row);
     const keepLogs = this.options?.keepLogs;
-    if (keepLogs !== undefined && keepLogs > 0 && this._logs.length > keepLogs) {
+    if (
+      keepLogs !== undefined &&
+      keepLogs > 0 &&
+      this._logs.length > keepLogs
+    ) {
       this._logs = this._logs.slice(-keepLogs);
     }
     return Promise.resolve(this._logs.length);
@@ -37,9 +41,7 @@ class InMemoryWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
 
   clearLogs(keepLast?: number): Promise<void> {
     this._logs =
-      keepLast !== undefined && keepLast > 0
-        ? this._logs.slice(-keepLast)
-        : [];
+      keepLast !== undefined && keepLast > 0 ? this._logs.slice(-keepLast) : [];
     return Promise.resolve();
   }
 
@@ -102,17 +104,15 @@ export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
     return Promise.resolve();
   }
 
-  async getJobLogs(
-    jobId: string,
-  ): Promise<{ logs: string[]; count: number }> {
+  getJobLogs(jobId: string): Promise<{ logs: string[]; count: number }> {
     const job = this.jobs.get(jobId) as
       | InMemoryWorkflowJob<unknown>
       | undefined;
     if (!job) {
-      return { logs: [], count: 0 };
+      return Promise.resolve({ logs: [], count: 0 });
     }
     const logs = job.getLogs();
-    return { logs, count: logs.length };
+    return Promise.resolve({ logs, count: logs.length });
   }
 
   /** Test helper — check if a job is currently in delayed state */
