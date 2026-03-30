@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DelayedError } from 'bullmq';
 import {
@@ -11,37 +10,15 @@ import {
   Workflow,
 } from './index';
 
-@Injectable()
-class SleepStats {
-  runs = 0;
-  checkCalls = 0;
-}
+// ---------------------------------------------------------------------------
+// Workflow fixtures
+// ---------------------------------------------------------------------------
 
-@Workflow({ name: 'polling-workflow' })
-class PollingWorkflow extends DozerWorkflow<{ maxChecks: number }> {
-  constructor(private readonly stats: SleepStats) {
-    super();
-  }
-
-  @Step({ name: 'check' })
-  checkStatus(): Promise<boolean> {
-    this.stats.checkCalls += 1;
-    return Promise.resolve(this.stats.checkCalls >= 3);
-  }
-
-  async run(): Promise<{ checks: number }> {
-    this.stats.runs += 1;
-    let done = false;
-    while (!done) {
-      await this.sleep(10_000);
-      done = await this.checkStatus();
-    }
-    return { checks: this.stats.checkCalls };
-  }
-}
-
-@Workflow({ name: 'sleep-once-workflow' })
-class SleepOnceWorkflow extends DozerWorkflow<{ value: number }> {
+@Workflow({ name: 'break-until-workflow' })
+class BreakUntilWorkflow extends DozerWorkflow<{
+  value: number;
+  wakeUpAt: number;
+}> {
   @Step({ name: 'before' })
   before(v: number): Promise<number> {
     return Promise.resolve(v + 1);
@@ -52,123 +29,178 @@ class SleepOnceWorkflow extends DozerWorkflow<{ value: number }> {
     return Promise.resolve(v * 2);
   }
 
-  async run(input: { value: number }): Promise<number> {
+  async run(input: { value: number; wakeUpAt: number }): Promise<number> {
     const a = await this.before(input.value);
-    await this.sleep(5_000);
+    this.breakUntil(input.wakeUpAt);
     return this.after(a);
   }
 }
 
-describe('DozerEngine sleep integration', () => {
+@Workflow({ name: 'break-for-workflow' })
+class BreakForWorkflow extends DozerWorkflow<{ value: number }> {
+  @Step({ name: 'step' })
+  step(v: number): Promise<number> {
+    return Promise.resolve(v + 1);
+  }
+
+  async run(input: { value: number }): Promise<number> {
+    const a = await this.step(input.value);
+    this.breakFor(10_000);
+    return a;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+describe('DozerEngine breakUntil / breakFor integration', () => {
   let moduleRef: TestingModule;
   let queue: InMemoryWorkflowQueue;
   let engine: DozerEngine;
-  let stats: SleepStats;
 
   beforeEach(async () => {
     queue = new InMemoryWorkflowQueue();
     moduleRef = await Test.createTestingModule({
       imports: [
         DozerModule.forRoot({ driver: queue }),
-        DozerModule.forFeature(
-          [PollingWorkflow, SleepOnceWorkflow],
-          [SleepStats],
-        ),
+        DozerModule.forFeature([BreakUntilWorkflow, BreakForWorkflow]),
       ],
     }).compile();
     await moduleRef.init();
     engine = moduleRef.get(DozerEngine);
-    stats = moduleRef.get(SleepStats);
   });
 
   afterEach(async () => {
     if (moduleRef) await moduleRef.close();
   });
 
-  it('engine throws DelayedError when workflow calls sleep()', async () => {
-    const jobId = await engine.start('sleep-once-workflow', { value: 5 });
-    await expect(engine.run(jobId)).rejects.toBeInstanceOf(DelayedError);
-  });
+  // -------------------------------------------------------------------------
+  // breakUntil
+  // -------------------------------------------------------------------------
 
-  it('job is marked as delayed in the queue after sleep', async () => {
-    const jobId = await engine.start('sleep-once-workflow', { value: 5 });
-    try {
-      await engine.run(jobId);
-    } catch {
-      // intentionally empty
-    }
-    expect(queue.isDelayed(jobId)).toBe(true);
-  });
+  describe('breakUntil()', () => {
+    it('engine throws DelayedError when timestamp is in the future', async () => {
+      const jobId = await engine.start('break-until-workflow', {
+        value: 5,
+        wakeUpAt: Date.now() + 60_000,
+      });
+      await expect(engine.run(jobId)).rejects.toBeInstanceOf(DelayedError);
+    });
 
-  it('workflow completes correctly after being promoted from sleep', async () => {
-    const jobId = await engine.start('sleep-once-workflow', { value: 5 });
-    // First run: stops at sleep
-    try {
-      await engine.run(jobId);
-    } catch {
-      // intentionally empty
-    }
-    expect(queue.isDelayed(jobId)).toBe(true);
-
-    // Simulate BullMQ waking the job (set wakeUpAt to past)
-    const job = await queue.get(jobId);
-    const state = job!.data[DOZER_JOB_STATE_KEY]!;
-    const sleepKey = Object.keys(state.sl ?? {})[0];
-    state.sl![sleepKey] = Date.now() - 1; // mark as already elapsed
-    await job!.updateData(job!.data);
-
-    await queue.promoteDelayed(jobId);
-
-    // Second run: replays before-step from cache, completes sleep, runs after-step
-    const result = await engine.run(jobId);
-    expect(result).toBe(12); // (5+1) * 2
-  });
-
-  it('polling workflow runs checkStatus the correct number of times across resumes', async () => {
-    const jobId = await engine.start('polling-workflow', { maxChecks: 3 });
-
-    // First resume: sleep → DelayedError. checkStatus not called yet (sleep happens first)
-    try {
-      await engine.run(jobId);
-    } catch {
-      // intentionally empty
-    }
-    expect(stats.checkCalls).toBe(0);
-
-    const advanceSleep = async (): Promise<void> => {
-      const job = await queue.get(jobId);
-      const state = job!.data[DOZER_JOB_STATE_KEY]!;
-      if (state.sl) {
-        for (const key of Object.keys(state.sl)) {
-          state.sl[key] = Date.now() - 1;
-        }
-        await job!.updateData(job!.data);
+    it('job is marked as delayed in the queue', async () => {
+      const jobId = await engine.start('break-until-workflow', {
+        value: 5,
+        wakeUpAt: Date.now() + 60_000,
+      });
+      try {
+        await engine.run(jobId);
+      } catch {
+        /* intentionally empty */
       }
+      expect(queue.isDelayed(jobId)).toBe(true);
+    });
+
+    it('state.sl is NOT written — no sleep intent stored', async () => {
+      const jobId = await engine.start('break-until-workflow', {
+        value: 5,
+        wakeUpAt: Date.now() + 60_000,
+      });
+      try {
+        await engine.run(jobId);
+      } catch {
+        /* intentionally empty */
+      }
+      const job = await queue.get(jobId);
+      expect(job!.data[DOZER_JOB_STATE_KEY]?.sl).toBeUndefined();
+    });
+
+    it('workflow completes immediately when timestamp is already past', async () => {
+      const jobId = await engine.start('break-until-workflow', {
+        value: 5,
+        wakeUpAt: Date.now() - 1,
+      });
+      const result = await engine.run(jobId);
+      expect(result).toBe(12); // (5 + 1) * 2
+    });
+
+    it('workflow completes after delay elapses (real 100 ms wait)', async () => {
+      const wakeUpAt = Date.now() + 100;
+      const jobId = await engine.start('break-until-workflow', {
+        value: 5,
+        wakeUpAt,
+      });
+
+      try {
+        await engine.run(jobId);
+      } catch {
+        /* intentionally empty */
+      }
+      expect(queue.isDelayed(jobId)).toBe(true);
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 150));
       await queue.promoteDelayed(jobId);
-    };
 
-    // Second resume: sleep completes, checkStatus called (returns false → sleep again)
-    await advanceSleep();
-    try {
-      await engine.run(jobId);
-    } catch {
-      // intentionally empty
-    }
-    expect(stats.checkCalls).toBe(1);
+      const result = await engine.run(jobId);
+      expect(result).toBe(12); // (5 + 1) * 2
+    }, 5_000);
+  });
 
-    // Third resume: sleep completes, checkStatus called (returns false → sleep again)
-    await advanceSleep();
-    try {
-      await engine.run(jobId);
-    } catch {
-      // intentionally empty
-    }
-    expect(stats.checkCalls).toBe(2);
+  // -------------------------------------------------------------------------
+  // breakFor
+  // -------------------------------------------------------------------------
 
-    // Fourth resume: sleep completes, checkStatus called (returns true → workflow ends)
-    await advanceSleep();
-    const result = (await engine.run(jobId)) as { checks: number };
-    expect(result.checks).toBe(3);
-    expect(stats.runs).toBe(4);
+  describe('breakFor()', () => {
+    it('engine throws DelayedError when duration > 0', async () => {
+      const jobId = await engine.start('break-for-workflow', { value: 5 });
+      await expect(engine.run(jobId)).rejects.toBeInstanceOf(DelayedError);
+    });
+
+    it('job is marked as delayed in the queue', async () => {
+      const jobId = await engine.start('break-for-workflow', { value: 5 });
+      try {
+        await engine.run(jobId);
+      } catch {
+        /* intentionally empty */
+      }
+      expect(queue.isDelayed(jobId)).toBe(true);
+    });
+
+    it('state.sl is NOT written — no sleep intent stored', async () => {
+      const jobId = await engine.start('break-for-workflow', { value: 5 });
+      try {
+        await engine.run(jobId);
+      } catch {
+        /* intentionally empty */
+      }
+      const job = await queue.get(jobId);
+      expect(job!.data[DOZER_JOB_STATE_KEY]?.sl).toBeUndefined();
+    });
+
+    it('wakeUpAt is approximately Date.now() + durationMs', async () => {
+      const jobId = await engine.start('break-for-workflow', { value: 5 });
+      const before = Date.now();
+      let caughtWakeUpAt = 0;
+
+      // Intercept moveToDelayed to capture wakeUpAt
+      const originalMove: (jid: string, ts: number) => Promise<void> =
+        queue.moveToDelayed.bind(queue) as (
+          jid: string,
+          ts: number,
+        ) => Promise<void>;
+      queue.moveToDelayed = (jid: string, wakeUpAt: number): Promise<void> => {
+        if (jid === jobId) caughtWakeUpAt = wakeUpAt;
+        return originalMove(jid, wakeUpAt);
+      };
+
+      try {
+        await engine.run(jobId);
+      } catch {
+        /* intentionally empty */
+      }
+
+      expect(caughtWakeUpAt).toBeGreaterThanOrEqual(before + 9_900);
+      expect(caughtWakeUpAt).toBeLessThanOrEqual(before + 11_000);
+    });
   });
 });

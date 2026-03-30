@@ -45,6 +45,13 @@ export interface DozerModuleOptions {
     workflowName: string,
     error: Error,
   ) => Promise<void> | void;
+  /**
+   * Maximum allowed size (in bytes) of the serialized workflow state per flush.
+   * When exceeded, `StateSizeLimitError` is thrown, failing the workflow job.
+   * Protects Redis from unbounded state growth caused by workflows that cache
+   * many or very large step results. No limit by default.
+   */
+  maxStateSizeBytes?: number;
 }
 
 export interface DozerModuleAsyncOptions extends Pick<

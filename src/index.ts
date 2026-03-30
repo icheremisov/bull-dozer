@@ -67,6 +67,7 @@ export { InMemoryWorkflowQueue } from './queue/in-memory-workflow-queue';
 
 export { DozerError } from './errors/dozer.error';
 export { NonDeterminismError } from './errors/non-determinism.error';
+export { StateSizeLimitError } from './errors/state-size-limit.error';
 export { NonRetryableError } from './errors/non-retryable.error';
 export { SerializationError } from './errors/serialization.error';
 export { StepReplayConflictError } from './errors/step-replay-conflict.error';

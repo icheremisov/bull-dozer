@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { RetryOptions } from '../decorators/step.decorator';
 import { NonDeterminismError } from '../errors/non-determinism.error';
-import { WorkflowSleepRequestedError } from '../errors/workflow-sleep-requested.error';
 import { WorkflowSignalWaitRequestedError } from '../errors/workflow-signal-wait-requested.error';
 import { WorkflowStateStore } from './workflow-state.store';
 
@@ -136,31 +135,6 @@ export class WorkflowExecutionContext {
 
   getDefaultRetry(): RetryOptions | undefined {
     return this.options.defaultRetry;
-  }
-
-  async sleep(durationMs: number): Promise<void> {
-    const invocation = await this.enterStep('__sleep__');
-
-    if (invocation.hasCachedResult) {
-      this.exitStep();
-      return;
-    }
-
-    const existingWakeUpAt = this.stateStore.getSleepIntent(invocation.key);
-    if (existingWakeUpAt !== undefined) {
-      if (Date.now() >= existingWakeUpAt) {
-        await this.stateStore.completeSleep(invocation.key);
-        this.exitStep();
-        return;
-      }
-      this.exitStep();
-      throw new WorkflowSleepRequestedError(existingWakeUpAt);
-    }
-
-    const wakeUpAt = Date.now() + durationMs;
-    await this.stateStore.saveSleepIntent(invocation.key, wakeUpAt);
-    this.exitStep();
-    throw new WorkflowSleepRequestedError(wakeUpAt);
   }
 
   async waitForSignal<T>(

@@ -9,6 +9,7 @@ export class ScenarioControlsService {
   private readonly randomValues = new Map<string, number>();
   private readonly externalValues = new Map<string, ExternalVariant>();
   private readonly workflowVersions = new Map<string, WorkflowVersion>();
+  private readonly pollingQueues = new Map<string, string[]>();
 
   setTimerTick(key: string, tick: number): void {
     this.timerTicks.set(key, tick);
@@ -44,10 +45,23 @@ export class ScenarioControlsService {
     return this.workflowVersions.get(key) ?? 'v1';
   }
 
+  queuePollingStatuses(key: string, statuses: string[]): void {
+    this.pollingQueues.set(key, [...statuses]);
+  }
+
+  nextPollingStatus(key: string): string {
+    const queue = this.pollingQueues.get(key);
+    if (!queue || queue.length === 0) return 'pending';
+    const next = queue.shift()!;
+    if (queue.length === 0) this.pollingQueues.delete(key);
+    return next;
+  }
+
   reset(): void {
     this.timerTicks.clear();
     this.randomValues.clear();
     this.externalValues.clear();
     this.workflowVersions.clear();
+    this.pollingQueues.clear();
   }
 }

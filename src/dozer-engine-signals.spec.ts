@@ -42,15 +42,21 @@ class SignalTimeoutWorkflow extends DozerWorkflow<unknown> {
   }
 }
 
-@Workflow({ name: 'sleep-then-signal-workflow' })
-class SleepThenSignalWorkflow extends DozerWorkflow<{ value: number }> {
+@Workflow({ name: 'break-then-signal-workflow' })
+class BreakThenSignalWorkflow extends DozerWorkflow<{
+  value: number;
+  wakeUpAt: number;
+}> {
   @Step({ name: 'compute' })
   compute(v: number): Promise<number> {
     return Promise.resolve(v + 1);
   }
 
-  async run(input: { value: number }): Promise<{ result: number }> {
-    await this.sleep(10_000);
+  async run(input: {
+    value: number;
+    wakeUpAt: number;
+  }): Promise<{ result: number }> {
+    this.breakUntil(input.wakeUpAt);
     const payload = await this.waitForSignal<{ bonus: number }>('ready');
     const r = await this.compute(input.value + (payload?.bonus ?? 0));
     return { result: r };
@@ -71,7 +77,7 @@ describe('DozerEngine signal integration', () => {
         DozerModule.forFeature([
           SignalWorkflow,
           SignalTimeoutWorkflow,
-          SleepThenSignalWorkflow,
+          BreakThenSignalWorkflow,
         ]),
       ],
     }).compile();
@@ -164,12 +170,14 @@ describe('DozerEngine signal integration', () => {
     expect(result.timedOut).toBe(true);
   });
 
-  it('workflow completes after sleep stage followed by signal stage', async () => {
-    const jobId = await engine.start('sleep-then-signal-workflow', {
+  it('workflow completes after breakUntil stage followed by signal stage', async () => {
+    const wakeUpAt = Date.now() + 100; // 100 ms
+    const jobId = await engine.start('break-then-signal-workflow', {
       value: 5,
+      wakeUpAt,
     });
 
-    // Run 1: hits sleep → parks as delayed
+    // Run 1: breakUntil timestamp is future → parks as delayed
     try {
       await engine.run(jobId);
     } catch {
@@ -177,20 +185,15 @@ describe('DozerEngine signal integration', () => {
     }
     expect(queue.isDelayed(jobId)).toBe(true);
 
-    // Signal before sleep is done → no pending signal yet → returns false
+    // Signal before break is done → no pending signal yet → returns false
     const earlySignal = await client.sendSignal(jobId, 'ready', { bonus: 10 });
     expect(earlySignal).toBe(false);
 
-    // Advance sleep to past
-    const job = await queue.get(jobId);
-    const state = job!.data[DOZER_JOB_STATE_KEY]!;
-    for (const key of Object.keys(state.sl ?? {})) {
-      state.sl![key] = Date.now() - 1;
-    }
-    await job!.updateData(job!.data);
+    // Wait for delay to elapse, then promote
+    await new Promise<void>((resolve) => setTimeout(resolve, 150));
     await queue.promoteDelayed(jobId);
 
-    // Run 2: sleep completes, hits waitForSignal → parks again
+    // Run 2: breakUntil sees past timestamp → returns. hits waitForSignal → parks
     try {
       await engine.run(jobId);
     } catch {
@@ -198,15 +201,15 @@ describe('DozerEngine signal integration', () => {
     }
     expect(queue.isDelayed(jobId)).toBe(true);
 
-    // Now signal is registered
+    // Now signal is registered — deliver it
     const delivered = await client.sendSignal(jobId, 'ready', { bonus: 10 });
     expect(delivered).toBe(true);
     expect(queue.isDelayed(jobId)).toBe(false);
 
-    // Run 3: replays sleep (cached), replays signal (cached), runs compute
+    // Run 3: breakUntil (past, no-op) → signal cached → compute
     const result = await engine.run(jobId);
     expect(result).toEqual({ result: 16 }); // (5 + 10) + 1
-  });
+  }, 5_000);
 
   it('sendSignal with wrong signal name returns false and does not promote job', async () => {
     const jobId = await engine.start('signal-workflow', { value: 5 });

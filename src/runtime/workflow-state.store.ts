@@ -1,6 +1,7 @@
 import { DOZER_JOB_STATE_KEY } from '../constants';
 import { NonDeterminismError } from '../errors/non-determinism.error';
 import { SerializationError } from '../errors/serialization.error';
+import { StateSizeLimitError } from '../errors/state-size-limit.error';
 import { StepReplayConflictError } from '../errors/step-replay-conflict.error';
 import {
   CompactWorkflowState,
@@ -23,6 +24,10 @@ const createInitialState = (): CompactWorkflowState => ({
 interface WorkflowStateStoreOptions {
   readOnly?: boolean;
   strictTrace?: boolean;
+  /** When false, trace is never written or validated. Defaults to true. */
+  traceEnabled?: boolean;
+  /** Throw StateSizeLimitError when state JSON exceeds this byte count. */
+  maxStateSizeBytes?: number;
 }
 
 const asErrorMessage = (error: unknown): string => {
@@ -243,28 +248,6 @@ export class WorkflowStateStore<TInput = unknown> {
     return nextValue;
   }
 
-  saveSleepIntent(stepKey: string, wakeUpAt: number): Promise<void> {
-    this.state.sl = this.state.sl ?? {};
-    this.state.sl[stepKey] = wakeUpAt;
-    return this.flush();
-  }
-
-  getSleepIntent(stepKey: string): number | undefined {
-    return this.state.sl?.[stepKey];
-  }
-
-  async completeSleep(stepKey: string): Promise<void> {
-    if (this.state.sl) {
-      delete this.state.sl[stepKey];
-      if (Object.keys(this.state.sl).length === 0) {
-        this.state.sl = undefined;
-      }
-    }
-    this.state.u = this.state.u ?? {};
-    this.state.u[stepKey] = 1;
-    await this.flush();
-  }
-
   savePendingSignal(
     signalName: string,
     stepKey: string,
@@ -327,6 +310,10 @@ export class WorkflowStateStore<TInput = unknown> {
   }
 
   async beginStep(traceIndex: number, stepKey: string): Promise<void> {
+    if (this.options.traceEnabled === false) {
+      return;
+    }
+
     const expected = this.state.t[traceIndex];
     if (expected === undefined) {
       if (this.options.strictTrace) {
@@ -345,6 +332,10 @@ export class WorkflowStateStore<TInput = unknown> {
   }
 
   assertTraceConsumed(consumedTraceLength: number): void {
+    if (this.options.traceEnabled === false) {
+      return;
+    }
+
     const expectedLength = this.state.t.length;
     if (consumedTraceLength !== expectedLength) {
       throw new NonDeterminismError(
@@ -371,6 +362,16 @@ export class WorkflowStateStore<TInput = unknown> {
       return;
     }
 
+    if (this.options.maxStateSizeBytes !== undefined) {
+      // JSON.stringify output is ASCII + \uXXXX escapes, so .length ≈ byte count.
+      // BullMQ will call JSON.stringify again internally — a second pass is unavoidable
+      // since the raw serialized string is not exposed by the BullMQ API.
+      const len = Buffer.byteLength(JSON.stringify(this.state), 'utf8');
+      if (len > this.options.maxStateSizeBytes) {
+        throw new StateSizeLimitError(len, this.options.maxStateSizeBytes);
+      }
+    }
+
     try {
       const nextData: WorkflowJobData<TInput> = {
         ...this.job.data,
@@ -378,6 +379,7 @@ export class WorkflowStateStore<TInput = unknown> {
       };
       await this.job.updateData(nextData);
     } catch (error) {
+      if (error instanceof StateSizeLimitError) throw error;
       throw new SerializationError(
         'Failed to persist workflow state into job data.',
         error,

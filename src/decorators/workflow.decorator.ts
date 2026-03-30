@@ -20,6 +20,13 @@ export interface WorkflowExecutionOptions {
   workflowRetry?: RetryOptions;
   autoDeterminismProbe?: boolean;
   determinismProbeMaxDurationMs?: number;
+  /**
+   * Whether to record and validate the execution trace (`t` field in job state).
+   * Defaults to `true`. Set to `false` in production to reduce state size and skip
+   * replay conflict detection. When disabled, `StepReplayConflictError` will never
+   * be thrown, and the `t` array stays empty.
+   */
+  traceEnabled?: boolean;
 }
 
 export interface WorkflowOptions {

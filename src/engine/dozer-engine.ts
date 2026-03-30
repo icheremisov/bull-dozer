@@ -156,6 +156,8 @@ const mergeRetry = (
     determinismProbeMaxDurationMs:
       workflowExecution?.determinismProbeMaxDurationMs ??
       globalExecution?.determinismProbeMaxDurationMs,
+    traceEnabled:
+      workflowExecution?.traceEnabled ?? globalExecution?.traceEnabled,
   };
 };
 
@@ -478,7 +480,10 @@ export class DozerEngine {
           return result;
         }
 
-        const stateStore = new WorkflowStateStore(job);
+        const stateStore = new WorkflowStateStore(job, {
+          traceEnabled: executionOptions.traceEnabled,
+          maxStateSizeBytes: this.moduleOptions.maxStateSizeBytes,
+        });
         const executionContext = new WorkflowExecutionContext(stateStore, {
           defaultRetry: executionOptions.stepRetry,
         });

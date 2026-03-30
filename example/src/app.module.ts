@@ -48,6 +48,7 @@ import { TypedStepWorkflow } from './workflows/typed-step.workflow';
 import { VersionedLogicWorkflow } from './workflows/versioned-logic.workflow';
 import { SleepWorkflow } from './workflows/sleep.workflow';
 import { SignalWorkflow } from './workflows/signal.workflow';
+import { PollingWorkflow } from './workflows/polling.workflow';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { SignalWorkflow } from './workflows/signal.workflow';
         FailurePublishWorkflow,
         SleepWorkflow,
         SignalWorkflow,
+        PollingWorkflow,
       ],
       [
         FailureMemoryService,

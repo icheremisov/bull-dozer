@@ -18,6 +18,7 @@ import {
 } from '../src/infra/tokens';
 import { BranchSelectorService } from '../src/support/branch-selector.service';
 import { FailureMemoryService } from '../src/support/failure-memory.service';
+import { ScenarioControlsService } from '../src/support/scenario-controls.service';
 import { isRedisReachable, redisTestConfig } from './helpers/redis';
 
 const sleep = async (ms: number): Promise<void> => {
@@ -88,6 +89,7 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
   let resultQueue: Queue<WorkflowResultQueueJobData<unknown>>;
   let branchSelector: BranchSelectorService;
   let failureMemory: FailureMemoryService;
+  let controls: ScenarioControlsService;
   let redisAvailable = false;
 
   const integrationTest = (name: string, fn: () => Promise<void>): void => {
@@ -127,6 +129,7 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
     await app.init();
     branchSelector = app.get(BranchSelectorService);
     failureMemory = app.get(FailureMemoryService);
+    controls = app.get(ScenarioControlsService);
   }, 30000);
 
   beforeEach(() => {
@@ -136,6 +139,7 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
 
     branchSelector.reset();
     failureMemory.reset();
+    controls.reset();
   });
 
   afterAll(async () => {
@@ -538,6 +542,40 @@ describe('Example workflows integration (real Redis + BullMQ)', () => {
 
       const data = await waitForTerminalStatus(queue, jobId, 15000);
       expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({ value: 6 });
+    },
+  );
+
+  integrationTest(
+    'polling workflow: completes after polling through pending statuses',
+    async () => {
+      const engine = moduleRef.get(DozerEngine);
+      const id = `polling-test-${Date.now()}`;
+
+      // Two pending responses, then succeeded — step body re-executes 3 times
+      controls.queuePollingStatuses(id, ['pending', 'pending', 'succeeded']);
+
+      const jobId = await engine.start('polling-workflow', {
+        id,
+        pollIntervalMs: 200,
+      });
+
+      const data = await waitForTerminalStatus(queue, jobId, 15_000);
+      expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({ status: 'succeeded' });
+    },
+  );
+
+  integrationTest(
+    'polling workflow: completes immediately when status is already succeeded',
+    async () => {
+      const engine = moduleRef.get(DozerEngine);
+      const id = `polling-immediate-${Date.now()}`;
+
+      controls.queuePollingStatuses(id, ['succeeded']);
+
+      const jobId = await engine.start('polling-workflow', { id });
+
+      const data = await waitForTerminalStatus(queue, jobId, 10_000);
+      expect(data[DOZER_JOB_STATE_KEY]?.r).toEqual({ status: 'succeeded' });
     },
   );
 
