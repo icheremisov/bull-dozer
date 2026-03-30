@@ -7,16 +7,57 @@ import {
 } from './workflow-queue';
 
 class InMemoryWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
+  priority: number;
+  progress: number | object = 0;
+
+  private _logs: string[] = [];
+
   constructor(
     public readonly id: string,
     public readonly name: string,
     public data: WorkflowJobData<TInput>,
     public readonly options?: WorkflowJobOptions,
-  ) {}
+  ) {
+    this.priority = options?.priority ?? 0;
+  }
 
   updateData(data: WorkflowJobData<TInput>): Promise<void> {
     this.data = data;
     return Promise.resolve();
+  }
+
+  log(row: string): Promise<number> {
+    this._logs.push(row);
+    const keepLogs = this.options?.keepLogs;
+    if (keepLogs !== undefined && keepLogs > 0 && this._logs.length > keepLogs) {
+      this._logs = this._logs.slice(-keepLogs);
+    }
+    return Promise.resolve(this._logs.length);
+  }
+
+  clearLogs(keepLast?: number): Promise<void> {
+    this._logs =
+      keepLast !== undefined && keepLast > 0
+        ? this._logs.slice(-keepLast)
+        : [];
+    return Promise.resolve();
+  }
+
+  changePriority(opts: { priority?: number }): Promise<void> {
+    if (opts.priority !== undefined) {
+      this.priority = opts.priority;
+    }
+    return Promise.resolve();
+  }
+
+  updateProgress(progress: number | object): Promise<void> {
+    this.progress = progress;
+    return Promise.resolve();
+  }
+
+  /** Test helper — returns a copy of the job's log entries. */
+  getLogs(): string[] {
+    return [...this._logs];
   }
 }
 
@@ -59,6 +100,19 @@ export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
   promoteDelayed(jobId: string): Promise<void> {
     this.delayedJobs.delete(jobId);
     return Promise.resolve();
+  }
+
+  async getJobLogs(
+    jobId: string,
+  ): Promise<{ logs: string[]; count: number }> {
+    const job = this.jobs.get(jobId) as
+      | InMemoryWorkflowJob<unknown>
+      | undefined;
+    if (!job) {
+      return { logs: [], count: 0 };
+    }
+    const logs = job.getLogs();
+    return { logs, count: logs.length };
   }
 
   /** Test helper — check if a job is currently in delayed state */

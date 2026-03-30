@@ -33,9 +33,36 @@ class BullMQWorkflowJob<TInput = unknown> implements WorkflowJob<TInput> {
     return this.dataSnapshot;
   }
 
+  get priority(): number {
+    return this.job.priority ?? 0;
+  }
+
+  get progress(): number | object {
+    return this.job.progress ?? 0;
+  }
+
   async updateData(data: WorkflowJobData<TInput>): Promise<void> {
     await this.job.updateData(data);
     this.dataSnapshot = data;
+  }
+
+  async log(row: string): Promise<number> {
+    return (await this.job.log?.(row)) ?? 0;
+  }
+
+  async clearLogs(keepLast?: number): Promise<void> {
+    await this.job.clearLogs?.(keepLast);
+  }
+
+  async changePriority(opts: {
+    priority?: number;
+    lifo?: boolean;
+  }): Promise<void> {
+    await this.job.changePriority?.(opts);
+  }
+
+  async updateProgress(progress: number | object): Promise<void> {
+    await this.job.updateProgress?.(progress);
   }
 }
 
@@ -88,5 +115,11 @@ export class BullMQWorkflowQueue implements WorkflowQueueDriver {
     if (!job) return;
     const bullmqJob = job;
     await bullmqJob.promote?.();
+  }
+
+  async getJobLogs(
+    jobId: string,
+  ): Promise<{ logs: string[]; count: number }> {
+    return (await this.queue.getJobLogs?.(jobId)) ?? { logs: [], count: 0 };
   }
 }

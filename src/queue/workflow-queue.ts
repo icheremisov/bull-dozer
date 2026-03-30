@@ -50,7 +50,13 @@ export interface WorkflowJob<TInput = unknown> {
   name: string;
   data: WorkflowJobData<TInput>;
   options?: WorkflowJobOptions;
+  priority: number;
+  progress: number | object;
   updateData(data: WorkflowJobData<TInput>): Promise<void>;
+  log(row: string): Promise<number>;
+  clearLogs(keepLast?: number): Promise<void>;
+  changePriority(opts: { priority?: number; lifo?: boolean }): Promise<void>;
+  updateProgress(progress: number | object): Promise<void>;
 }
 
 export interface WorkflowJobInfo<TResult = unknown> {
@@ -99,16 +105,26 @@ export interface WorkflowQueueDriver {
     token?: string,
   ): Promise<void>;
   promoteDelayed(jobId: string): Promise<void>;
+  getJobLogs(jobId: string): Promise<{ logs: string[]; count: number }>;
 }
 
 export interface BullMQJobLike<TData> {
   id?: string | number;
   name: string;
   data: TData;
+  priority?: number;
+  progress?: number | object;
   updateData(data: TData): Promise<void>;
   getState?(): Promise<string>;
   moveToDelayed?(timestamp: number, token?: string): Promise<void>;
   promote?(): Promise<void>;
+  log?(row: string): Promise<number>;
+  clearLogs?(keepLast?: number): Promise<void>;
+  changePriority?(opts: {
+    priority?: number;
+    lifo?: boolean;
+  }): Promise<void>;
+  updateProgress?(progress: number | object): Promise<void>;
 }
 
 export interface BullMQQueueLike<TData> {
@@ -118,4 +134,10 @@ export interface BullMQQueueLike<TData> {
     options?: WorkflowJobOptions,
   ): Promise<BullMQJobLike<unknown>>;
   getJob(jobId: string): Promise<BullMQJobLike<unknown> | null | undefined>;
+  getJobLogs?(
+    jobId: string,
+    start?: number,
+    end?: number,
+    asc?: boolean,
+  ): Promise<{ logs: string[]; count: number }>;
 }
