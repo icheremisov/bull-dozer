@@ -191,12 +191,16 @@ export class DozerEngine {
   async start<TInput = unknown>(
     workflowName: string,
     input: TInput,
+    jobOptions?: WorkflowJobOptions,
   ): Promise<string> {
     const workflowDefinition =
       this.registry.resolveOptionalDefinition(workflowName);
-    const jobOptions = mergeJobOptions(
-      this.moduleOptions.defaults?.job,
-      workflowDefinition?.options.job,
+    const resolvedJobOptions = mergeJobOptions(
+      mergeJobOptions(
+        this.moduleOptions.defaults?.job,
+        workflowDefinition?.options.job,
+      ),
+      jobOptions,
     );
 
     const serializedInput = await serializeForStorage(input, 'workflow input');
@@ -214,7 +218,7 @@ export class DozerEngine {
     const job = await this.queue.add<unknown>(
       workflowName,
       jobData,
-      jobOptions,
+      resolvedJobOptions,
     );
     return job.id;
   }

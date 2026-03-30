@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.1] — 2026-03-30
+
+### Added
+
+- **`DozerEngine.start(name, input, jobOptions?)`** — third optional parameter accepts `WorkflowJobOptions` (BullMQ `JobsOptions`) per-call, including `jobId` for deterministic IDs. Options are merged with lowest priority: global defaults → workflow-level → per-call overrides. `DozerClient.start()` already accepted this parameter.
+
+---
+
 ## [0.8.0] — 2026-03-30
 
 ### Added
