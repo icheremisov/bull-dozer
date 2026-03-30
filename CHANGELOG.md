@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.3] — 2026-03-30
+
+### Added
+
+- **`breakUntil(timestamp)`** — pure stateless interrupt: throws `WorkflowSleepRequestedError` if `Date.now() < timestamp`, returns silently otherwise. No state is written; determinism relies on the timestamp coming from workflow input or a cached `@Step` result.
+- **`breakFor(durationMs)`** — convenience wrapper around `breakUntil(Date.now() + durationMs)`. Safe to call inside an uncached `@Step` body (polling pattern) where the step re-executes from scratch on each resume.
+- **Polling pattern** — a `@Step` with `while(true)` + `breakFor()` inside re-executes its body on every resume. The trace records exactly **one** entry for the step regardless of how many polling iterations are needed, preventing unbounded trace growth.
+- **`traceEnabled` config** — set `execution: { traceEnabled: false }` per `@Workflow` or via `defaults.execution` in `DozerModule.forRoot` to disable trace recording and `StepReplayConflictError` detection. Useful for workflows with legitimate dynamic step ordering.
+- **`maxStateSizeBytes` config** — module-level byte limit on serialized job state. Throws `StateSizeLimitError` (with `actualBytes` / `limitBytes` fields) and marks the job as failed when the limit is exceeded.
+- **`StateSizeLimitError`** — exported error class, thrown when `maxStateSizeBytes` is exceeded.
+- **`StepReplayConflictError`** — exported error class, thrown when a replayed workflow calls steps in a different order than recorded in the trace.
+
+### Changed
+
+- `sleep()` / `sleepUntil()` / `pause()` / `pauseUntil()` removed from `DozerWorkflow`. Replace with `breakUntil(deterministicTimestamp)` or `breakFor(durationMs)`.
+- `saveSleepIntent` / `getSleepIntent` / `clearSleepIntent` removed from the state store. The `sl` field in `CompactWorkflowState` is retained for backward compatibility with jobs already in Redis but is no longer written.
+
+### Tests
+
+- `DozerWorkflow` unit tests — `breakUntil` and `breakFor` behaviour (future/past timestamps, wakeUpAt precision, zero-duration no-op, context-free usage).
+- `DozerEngine` sleep/break integration tests — `DelayedError` on park, `state.sl` never written, real 100 ms wait + promote cycle.
+- `DozerEngine` polling integration tests — `state.sl` never written, trace length stays at 1 across iterations, step body re-executes on each resume, failure propagation.
+- `DozerEngine` config tests — `traceEnabled: true/false` (per-workflow and module-level), `StepReplayConflictError` triggered / suppressed, `maxStateSizeBytes` within/over limit, boundary (limit = actualSize − 1).
+- Integration tests (real BullMQ + Redis) — polling workflow completes through pending statuses and completes immediately when status is already terminal.
+
+---
+
 ## [0.7.0] — 2026-03-29
 
 ### Fixed
