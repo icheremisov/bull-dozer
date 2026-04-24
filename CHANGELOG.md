@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.2] — 2026-04-25
+
+### Changed
+
+- Bumped patch/minor dependencies: `bullmq` 5.71→5.76, `@nestjs/*` 11.1.17→11.1.19, `ts-jest` 29.4.6→29.4.9, `typescript-eslint` 8.57→8.59, `prettier` 3.8.1→3.8.3, `@nestjs/cli` 11.0.16→11.0.21.
+
+---
+
 ## [0.8.1] — 2026-03-30
 
 ### Added
