@@ -83,7 +83,7 @@ export class InMemoryWorkflowQueue implements WorkflowQueueDriver {
       data,
       options,
     );
-    this.jobs.set(jobId, job as WorkflowJob<unknown>);
+    this.jobs.set(jobId, job);
     return Promise.resolve(job);
   }
 

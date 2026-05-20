@@ -100,7 +100,7 @@ describe('WorkflowRegistry', () => {
     it('throws when class prototype has no run() method', () => {
       registry.register(
         'bad-workflow',
-        NoRunWorkflow as never,
+        NoRunWorkflow,
         makeFactory({ run: async () => {} }),
       );
       expect(() => registry.resolveDefinition('bad-workflow')).toThrow(

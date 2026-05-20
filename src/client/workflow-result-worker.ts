@@ -63,8 +63,7 @@ export const decodeWorkflowResultJob = <TResult = unknown>(
     resultJobName: job.name,
     workflowJobId: payload.jobId,
     workflowName: payload.workflowName,
-    status:
-      (payload.status as 'completed' | 'failed' | undefined) ?? 'completed',
+    status: payload.status ?? 'completed',
     result: deserializeFromStorage(payload.result) as TResult | null,
     error: payload.error,
   };
