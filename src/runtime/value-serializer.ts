@@ -41,7 +41,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
     return false;
   }
 
-  const prototype = Object.getPrototypeOf(value as object) as object | null;
+  const prototype = Object.getPrototypeOf(value) as object | null;
   return prototype === Object.prototype || prototype === null;
 };
 

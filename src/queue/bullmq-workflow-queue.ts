@@ -74,11 +74,7 @@ export class BullMQWorkflowQueue implements WorkflowQueueDriver {
     data: WorkflowJobData<TInput>,
     options?: WorkflowJobOptions,
   ): Promise<WorkflowJob<TInput>> {
-    const job = await this.queue.add(
-      workflowName,
-      data as WorkflowJobData<unknown>,
-      options,
-    );
+    const job = await this.queue.add(workflowName, data, options);
 
     return new BullMQWorkflowJob<TInput>(
       job as BullMQJobLike<WorkflowJobData<TInput>>,
